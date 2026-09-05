@@ -1,149 +1,138 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="서울 100년 기온 변화 분석",
+    page_title="서울 100년 기온 및 분포 분석",
     page_icon="🌡️",
     layout="wide"
 )
 
-# 데이터 로드 함수 (캐싱 적용)
+# 데이터 로드 및 전처리
 @st.cache_data
 def load_data():
     url = "https://raw.githubusercontent.com/greatsong/modudata/main/data/seoul.csv"
     
-    # CP949 또는 UTF-8 인코딩 처리
     try:
         df = pd.read_csv(url, encoding='cp949')
     except Exception:
         df = pd.read_csv(url, encoding='utf-8')
     
-    # 컬럼명 공백 제거
     df.columns = df.columns.str.strip()
     
-    # 핵심 컬럼 자동 탐색 (열 이름 변형 대비)
     date_col = [c for c in df.columns if '날짜' in c][0]
     avg_col = [c for c in df.columns if '평균' in c][0]
     min_col = [c for c in df.columns if '최저' in c][0]
     max_col = [c for c in df.columns if '최고' in c][0]
     
-    # 날짜 처리 및 연도 추출
     df[date_col] = pd.to_datetime(df[date_col])
     df['연도'] = df[date_col].dt.year
     
-    # 수치형 변환 및 결측치 처리
     for col in [avg_col, min_col, max_col]:
         df[col] = pd.to_numeric(df[col], errors='coerce')
     
     df = df.dropna(subset=[avg_col])
     
-    return df, avg_col, min_col, max_col
+    return df, avg_col, min_col, max_col, date_col
 
-# 앱 헤더
-st.title("🌡️ 지난 100년간 서울의 기온 변화")
-st.markdown("기상청 서울 관측 데이터(seoul.csv)를 바탕으로 연도별 기온 변화 추이를 시각화한 웹 앱입니다.")
+# 대시보드 타이틀
+st.title("🌡️ 서울 일별 평균기온 분포 및 연도별 추이 분석")
 
 try:
-    df, avg_col, min_col, max_col = load_data()
+    df, avg_col, min_col, max_col, date_col = load_data()
     
-    # 연도별 평균 집계
-    annual_df = df.groupby('연도').agg(
-        연평균기온=(avg_col, 'mean'),
-        연평균최저기온=(min_col, 'mean'),
-        연평균최고기온=(max_col, 'mean')
-    ).reset_index()
+    # 사이드바 설정
+    st.sidebar.header("⚙️ 데이터 필터링")
     
-    # 사이드바 제어 요소
-    st.sidebar.header("⚙️ 검색 및 분석 옵션")
-    
-    min_year = int(annual_df['연도'].min())
-    max_year = int(annual_df['연도'].max())
+    min_year = int(df['연도'].min())
+    max_year = int(df['연도'].max())
     
     year_range = st.sidebar.slider(
-        "조회 연도 범위",
+        "분석 연도 범위 선택",
         min_value=min_year,
         max_value=max_year,
         value=(min_year, max_year)
     )
     
-    ma_window = st.sidebar.slider("이동평균 구간(년)", min_value=3, max_value=20, value=10)
+    # 선택된 연도 범위로 필터링
+    filtered_df = df[(df['연도'] >= year_range[0]) & (df['연도'] <= year_range[1])].copy()
     
-    # 데이터 필터링 및 이동평균 계산
-    filtered_df = annual_df[(annual_df['연도'] >= year_range[0]) & (annual_df['연도'] <= year_range[1])].copy()
-    filtered_df['이동평균'] = filtered_df['연평균기온'].rolling(window=ma_window, min_periods=1).mean()
+    # 탭 구성 (히스토그램 / 연도별 추이)
+    tab1, tab2 = st.tabs(["📊 일별 기온 분포 (히스토그램)", "📈 100년 기온 변화 추이"])
     
-    # 요약 지표 (Metric Cards)
-    c1, c2, c3, c4 = st.columns(4)
-    
-    start_temp = filtered_df['연평균기온'].iloc[0]
-    end_temp = filtered_df['연평균기온'].iloc[-1]
-    diff = end_temp - start_temp
-    
-    max_row = filtered_df.loc[filtered_df['연평균기온'].idxmax()]
-    min_row = filtered_df.loc[filtered_df['연평균기온'].idxmin()]
-    
-    c1.metric("분석 기간", f"{year_range[0]} ~ {year_range[1]}년")
-    c2.metric("최근 연평균 기온", f"{end_temp:.1f} ℃", delta=f"{diff:+.1f} ℃ (시작 대비)")
-    c3.metric("가장 따뜻했던 해", f"{int(max_row['연도'])}년", f"{max_row['연평균기온']:.1f} ℃")
-    c4.metric("가장 춥던 해", f"{int(min_row['연도'])}년", f"{min_row['연평균기온']:.1f} ℃")
-    
-    st.markdown("---")
-    
-    # 그래프 시각화 (Plotly)
-    st.subheader("📈 연도별 연평균 기온 및 추세선")
-    
-    fig = go.Figure()
-    
-    # 연평균 기온 라인
-    fig.add_trace(go.Scatter(
-        x=filtered_df['연도'],
-        y=filtered_df['연평균기온'],
-        mode='lines+markers',
-        name='연평균 기온',
-        line=dict(color='#E53935', width=1.5),
-        marker=dict(size=4),
-        hovertemplate='%{x}년 연평균: %{y:.2f}℃<extra></extra>'
-    ))
-    
-    # 이동평균 라인
-    fig.add_trace(go.Scatter(
-        x=filtered_df['연도'],
-        y=filtered_df['이동평균'],
-        mode='lines',
-        name=f'{ma_window}년 이동평균',
-        line=dict(color='#1E88E5', width=3, dash='dash'),
-        hovertemplate=f'%{{x}}년 {ma_window}년 이동평균: %{{y:.2f}}℃<extra></extra>'
-    ))
-    
-    fig.update_layout(
-        title=dict(text=f"서울 연평균 기온 추이 ({year_range[0]}년 ~ {year_range[1]}년)"),
-        xaxis_title="연도",
-        yaxis_title="기온 (℃)",
-        hovermode="x unified",
-        template="plotly_white",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # 데이터표 및 다운로드
-    with st.expander("📄 연도별 요약 데이터 보기"):
-        st.dataframe(filtered_df.style.format({
-            '연평균기온': '{:.2f} ℃',
-            '연평균최저기온': '{:.2f} ℃',
-            '연평균최고기온': '{:.2f} ℃',
-            '이동평균': '{:.2f} ℃'
-        }), use_container_width=True)
+    # --- TAB 1: 일별 기온 히스토그램 ---
+    with tab1:
+        st.subheader("📊 일별 평균기온 구간별 빈도 분포")
         
-        csv_bytes = filtered_df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
-            label="📥 CSV 데이터 다운로드",
-            data=csv_bytes,
-            file_name=f"seoul_temp_{year_range[0]}_{year_range[1]}.csv",
-            mime="text/csv"
+        # 히스토그램 간격(Bin size) 설정
+        bin_size = st.slider("기온 구간 간격 (℃)", min_value=0.5, max_value=5.0, value=1.0, step=0.5)
+        
+        # 주요 통계 수치
+        mean_temp = filtered_df[avg_col].mean()
+        median_temp = filtered_df[avg_col].median()
+        total_days = len(filtered_df)
+        
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("총 분석 일수", f"{total_days:,} 일")
+        m2.metric("전체 일평균기온 평균", f"{mean_temp:.1f} ℃")
+        m3.metric("일평균기온 중앙값", f"{median_temp:.1f} ℃")
+        m4.metric("역대 최저 / 최고 일평균", f"{filtered_df[avg_col].min():.1f} ℃ / {filtered_df[avg_col].max():.1f} ℃")
+        
+        # Plotly 히스토그램 생성
+        fig_hist = px.histogram(
+            filtered_df,
+            x=avg_col,
+            nbins=int((filtered_df[avg_col].max() - filtered_df[avg_col].min()) / bin_size),
+            title=f"서울 일별 평균기온 분포 ({year_range[0]}년 ~ {year_range[1]}년)",
+            labels={avg_col: '일별 평균기온 (℃)', 'count': '일수 (빈도)'},
+            color_discrete_sequence=['#42A5F5']
         )
+        
+        # 평균선 및 중앙값선 표시
+        fig_hist.add_vline(x=mean_temp, line_dash="dash", line_color="red", annotation_text=f"평균: {mean_temp:.1f}℃")
+        fig_hist.add_vline(x=median_temp, line_dash="dot", line_color="green", annotation_text=f"중앙값: {median_temp:.1f}℃")
+        
+        fig_hist.update_layout(
+            bargap=0.05,
+            template="plotly_white",
+            xaxis_title="일별 평균기온 (℃)",
+            yaxis_title="날짜 수(일)",
+            hovermode="x"
+        )
+        
+        st.plotly_chart(fig_hist, use_container_width=True)
+
+    # --- TAB 2: 연도별 추이 ---
+    with tab2:
+        st.subheader("📈 연도별 연평균 기온 변화")
+        
+        ma_window = st.slider("이동평균 구간(년)", min_value=3, max_value=20, value=10)
+        
+        annual_df = filtered_df.groupby('연도').agg(
+            연평균기온=(avg_col, 'mean')
+        ).reset_index()
+        
+        annual_df['이동평균'] = annual_df['연평균기온'].rolling(window=ma_window, min_periods=1).mean()
+        
+        fig_line = go.Figure()
+        fig_line.add_trace(go.Scatter(
+            x=annual_df['연도'], y=annual_df['연평균기온'],
+            mode='lines+markers', name='연평균 기온', line=dict(color='#E53935', width=1.5)
+        ))
+        fig_line.add_trace(go.Scatter(
+            x=annual_df['연도'], y=annual_df['이동평균'],
+            mode='lines', name=f'{ma_window}년 이동평균', line=dict(color='#1E88E5', width=3, dash='dash')
+        ))
+        
+        fig_line.update_layout(
+            xaxis_title="연도",
+            yaxis_title="기온 (℃)",
+            template="plotly_white",
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig_line, use_container_width=True)
 
 except Exception as e:
-    st.error(f"데이터를 불러오거나 처리하는 동안 오류가 발생했습니다: {e}")
+    st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
