@@ -4,87 +4,130 @@ import pandas as pd
 import pytz
 import streamlit as st
 
-# 페이지 기본 설정 (모던한 다크 모드 레이아웃)
+# 페이지 기본 설정
 st.set_page_config(
-    page_title="일별 박스오피스 대시보드",
-    page_icon="🎬",
+    page_title="NETFLIX LIGHT - 박스오피스",
+    page_icon="🍿",
     layout="wide"
 )
 
 # -------------------------------------------------------------
-# 🎨 깔끔하고 모던한 UI 커스텀 스타일
+# 🎨 넷플릭스 스타일 라이트 모드 (화이트 배경 + 넷플릭스 레드)
 # -------------------------------------------------------------
 st.markdown("""
     <style>
-    /* 전체 메인 배경 및 가독성 좋은 폰트 설정 */
+    /* 전체 메인 배경: 눈이 편안한 밝은 화이트/일렉트릭 백그라운드 */
     .stApp {
-        background-color: #0f172a;
-        color: #f8fafc;
-    }
-    
-    /* 상단 타이틀 영역 */
-    .header-container {
-        padding: 10px 0 20px 0;
-        border-bottom: 1px solid #1e293b;
-        margin-bottom: 20px;
-    }
-    .header-title {
-        color: #f8fafc;
-        font-size: 2.2rem;
-        font-weight: 800;
-        margin: 0;
-    }
-    .header-subtitle {
-        color: #94a3b8;
-        font-size: 1rem;
-        margin-top: 5px;
+        background-color: #ffffff;
+        color: #141414;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     }
 
-    /* 카드 형태의 지표 스타일 */
-    .metric-card {
-        background-color: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 20px;
-        text-align: center;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    /* 넷플릭스 헤더 바 */
+    .netflix-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 0 20px 0;
+        border-bottom: 2px solid #f2f2f2;
+        margin-bottom: 25px;
     }
-    .metric-label {
-        color: #94a3b8;
+    .netflix-logo {
+        color: #E50914;
+        font-size: 2.3rem;
+        font-weight: 900;
+        letter-spacing: -1.5px;
+        margin: 0;
+    }
+    .netflix-badge {
+        background-color: #E50914;
+        color: #ffffff;
+        padding: 4px 12px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        border-radius: 4px;
+        text-transform: uppercase;
+    }
+
+    /* 넷플릭스 스타일 메인 히어로 배너 (화이트 모드 전용) */
+    .hero-container {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 30px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+    .hero-title-badge {
+        color: #E50914;
+        font-weight: 800;
         font-size: 0.9rem;
-        font-weight: 600;
+        letter-spacing: 1px;
         margin-bottom: 5px;
     }
-    .metric-value {
-        color: #38bdf8;
-        font-size: 1.8rem;
-        font-weight: 700;
-        margin: 0;
+    .hero-title {
+        color: #111111;
+        font-size: 2.2rem;
+        font-weight: 800;
+        margin-bottom: 10px;
+    }
+    .hero-sub {
+        color: #666666;
+        font-size: 0.95rem;
+        margin-bottom: 20px;
     }
 
-    /* 모던 탭 스타일 */
+    /* 지표 카드 (메트릭) */
+    .net-card {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-left: 5px solid #E50914;
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        text-align: left;
+    }
+    .net-card-label {
+        color: #718096;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    .net-card-value {
+        color: #1a202c;
+        font-size: 1.6rem;
+        font-weight: 800;
+        margin-top: 4px;
+    }
+
+    /* 탭 메뉴 (넷플릭스 레드 포인트) */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: #1e293b;
+        gap: 12px;
+        background-color: #f1f5f9;
         padding: 6px;
-        border-radius: 10px;
+        border-radius: 8px;
     }
     .stTabs [data-baseweb="tab"] {
-        color: #94a3b8 !important;
-        font-weight: 600;
+        color: #475569 !important;
+        font-weight: 700;
         border-radius: 6px;
-        padding: 8px 16px;
+        padding: 8px 20px;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #0284c7 !important;
+        background-color: #E50914 !important;
         color: #ffffff !important;
+    }
+
+    /* 테이블 스타일 모던화 */
+    .stDataFrame {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
     }
     </style>
 """, unsafe_allow_html=True)
 
 
 # -------------------------------------------------------------
-# 1. KOBIS API 박스오피스 데이터 호출 (캐싱 1시간)
+# 1. KOBIS API 박스오피스 데이터 가져오기
 # -------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_box_office_data(api_key, target_date):
@@ -98,7 +141,6 @@ def fetch_box_office_data(api_key, target_date):
         
         data = response.json()
         
-        # faultInfo 예외 처리
         if "faultInfo" in data:
             error_message = data["faultInfo"].get("message", "알 수 없는 API 오류가 발생했습니다.")
             return None, f"API 오류: {error_message}"
@@ -116,7 +158,7 @@ def fetch_box_office_data(api_key, target_date):
 
 
 # -------------------------------------------------------------
-# 2. TMDB Open API로 영화 상세 정보 가져오기
+# 2. TMDB Open API 영화 상세 정보 가져오기
 # -------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_movie_detail(movie_name):
@@ -134,7 +176,6 @@ def fetch_movie_detail(movie_name):
                 movie_data = results[0]
                 movie_id = movie_data.get("id")
                 
-                # 관람 등급 가져오기
                 release_url = f"https://api.themoviedb.org/3/movie/{movie_id}/release_dates"
                 rel_res = requests.get(release_url, params={"api_key": params["api_key"]})
                 age_rating = "정보 없음"
@@ -171,7 +212,7 @@ def fetch_movie_detail(movie_name):
 
 
 # -------------------------------------------------------------
-# 3. 영화 상세 정보 팝업 모달
+# 3. 영화 상세 정보 다이얼로그 (모달)
 # -------------------------------------------------------------
 @st.dialog("🎬 영화 상세 정보")
 def show_movie_dialog(movie_name):
@@ -197,28 +238,27 @@ def show_movie_dialog(movie_name):
 
 
 # -------------------------------------------------------------
-# 메인 헤더 레이아웃
+# 헤더 영역
 # -------------------------------------------------------------
 st.markdown("""
-    <div class="header-container">
-        <h1 class="header-title">🎬 Daily Box Office Dashboard</h1>
-        <p class="header-subtitle">영화진흥위원회(KOBIS) 데이터 기반의 일별 박스오피스 분석</p>
+    <div class="netflix-header">
+        <h1 class="netflix-logo">NETFLIX <span style="font-size:1.2rem; font-weight:400; color:#333;">BOXOFFICE</span></h1>
+        <span class="netflix-badge">TOP 10 TODAY</span>
     </div>
 """, unsafe_allow_html=True)
 
-# Secrets 키 확인
+# Secrets 인증키 확인
 if "KOBIS_KEY" not in st.secrets:
     st.error("⚠️ 인증키가 설정되지 않았습니다. Streamlit Secrets에 `KOBIS_KEY`를 등록해 주세요.")
     st.stop()
 
 api_key = st.secrets["KOBIS_KEY"]
 
-# 날짜 계산 (한국 시간 기준어제까지 선택 가능)
+# 날짜 계산
 kst = pytz.timezone("Asia/Seoul")
 now_kst = datetime.datetime.now(kst)
 yesterday = (now_kst - datetime.timedelta(days=1)).date()
 
-# 컨트롤 패널 (날짜 선택)
 col_date, col_space = st.columns([1, 3])
 with col_date:
     selected_date = st.date_input(
@@ -231,19 +271,16 @@ with col_date:
 target_dt_str = selected_date.strftime("%Y%m%d")
 display_dt_str = selected_date.strftime("%Y년 %m월 %d일")
 
-st.markdown(f"##### 📊 **{display_dt_str}** 박스오피스 결과")
-
-# API 호출
+# 데이터 호출
 movie_list, error_msg = fetch_box_office_data(api_key, target_dt_str)
 
-# 데이터 예외 및 집계 전 처리
 if error_msg == "EMPTY_LIST":
     st.warning("⚠️ **그날은 아직 집계 전입니다.** (선택하신 날짜의 박스오피스 데이터가 생성되지 않았습니다.)")
 elif error_msg:
     st.error("❌ 데이터를 가져오는 데 실패했습니다.")
-    st.info(f"💡 **확인 사항:** KOBIS API 키 설정 상태 및 호출 한도를 확인해 주세요.\n\n({error_msg})")
+    st.info(f"💡 **확인 사항:** KOBIS API 키 설정 상태를 확인해 주세요.\n\n({error_msg})")
 else:
-    # 데이터 전처리
+    # 데이터 가공
     df = pd.DataFrame(movie_list)
     numeric_cols = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt", "showCnt"]
     for col in numeric_cols:
@@ -252,7 +289,6 @@ else:
             
     df = df.sort_values("rank").reset_index(drop=True)
 
-    # 순위 증감 화살표 표시
     def format_rank_change(val):
         if val > 0:
             return f"🔴 +{val} ▲"
@@ -264,57 +300,63 @@ else:
     df["순위변동"] = df["rankInten"].apply(format_rank_change)
 
     # -------------------------------------------------------------
-    # 깔끔한 탭 넘김 레이아웃
+    # 탭 구성 (라이트 넷플릭스)
     # -------------------------------------------------------------
     tab1, tab2, tab3, tab4 = st.tabs([
-        "🏆 1위 영화 하이라이트", 
-        "📊 관객수 TOP 5 차트", 
-        "📋 전체 순위표", 
-        "🔍 영화 상세 검색"
+        "🔥 오늘 일등 추천", 
+        "📈 관객수 랭킹 차트", 
+        "📋 전체 랭킹 리스트", 
+        "🔍 상세 검색"
     ])
 
-    # 탭 1: 1위 하이라이트
+    # TAB 1: 넷플릭스 메인 히어로 스타일 (1위 영화)
     with tab1:
         top_1 = df.iloc[0]
-        st.markdown(f"### 🥇 1위 영화: **{top_1['movieNm']}**")
-        st.caption(f"개봉일: {top_1['openDt']} | 전날 대비 순위: {top_1['순위변동']}")
         
+        st.markdown(f"""
+            <div class="hero-container">
+                <div class="hero-title-badge">#1 TODAY'S FEATURED</div>
+                <div class="hero-title">{top_1['movieNm']}</div>
+                <div class="hero-sub">개봉일: {top_1['openDt']} &nbsp;|&nbsp; 순위 변동: {top_1['순위변동']}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
         c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-label">어제 관객수</div>
-                    <div class="metric-value">{top_1['audiCnt']:,} 명</div>
+                <div class="net-card">
+                    <div class="net-card-label">일일 관객수</div>
+                    <div class="net-card-value">{top_1['audiCnt']:,} 명</div>
                 </div>
             """, unsafe_allow_html=True)
         with c2:
             st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-label">누적 관객수</div>
-                    <div class="metric-value" style="color:#f8fafc;">{top_1['audiAcc']:,} 명</div>
+                <div class="net-card">
+                    <div class="net-card-label">누적 관객수</div>
+                    <div class="net-card-value">{top_1['audiAcc']:,} 명</div>
                 </div>
             """, unsafe_allow_html=True)
         with c3:
             st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-label">상영 스크린수</div>
-                    <div class="metric-value" style="color:#f8fafc;">{top_1['scrnCnt']:,} 개</div>
+                <div class="net-card">
+                    <div class="net-card-label">스크린수</div>
+                    <div class="net-card-value">{top_1['scrnCnt']:,} 개</div>
                 </div>
             """, unsafe_allow_html=True)
-        
+
         st.write("")
-        if st.button(f"🎬 '{top_1['movieNm']}' 줄거리 및 상세보기"):
+        if st.button(f"▶ '{top_1['movieNm']}' 상세 정보 열기", key="hero_btn"):
             show_movie_dialog(top_1["movieNm"])
 
-    # 탭 2: TOP 5 차트
+    # TAB 2: 차트
     with tab2:
-        st.markdown("#### 📊 관객수 TOP 5 영화")
+        st.markdown("<h4 style='color:#111;'>📈 TOP 5 관객수 차트</h4>", unsafe_allow_html=True)
         top_5_df = df.head(5)
         st.bar_chart(data=top_5_df, x="movieNm", y="audiCnt", use_container_width=True)
 
-    # 탭 3: 전체 순위표
+    # TAB 3: 전체 순위표
     with tab3:
-        st.markdown("#### 📋 전체 박스오피스 순위 (TOP 10)")
+        st.markdown("<h4 style='color:#111;'>📋 오늘 박스오피스 순위표</h4>", unsafe_allow_html=True)
         display_df = df[["rank", "순위변동", "movieNm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
         display_df.columns = ["순위", "전날 대비", "영화명", "개봉일", "관객수", "누적관객", "스크린수"]
 
@@ -328,11 +370,11 @@ else:
             hide_index=True
         )
 
-    # 탭 4: 상세 검색
+    # TAB 4: 상세 검색
     with tab4:
-        st.markdown("#### 🔍 영화 선택 상세 검색")
+        st.markdown("<h4 style='color:#111;'>🔍 영화 줄거리 검색</h4>", unsafe_allow_html=True)
         selected_movie = st.selectbox(
-            "줄거리 및 상세 정보를 확인할 영화를 고르세요:",
+            "목록에서 영화를 선택하세요:",
             options=df["movieNm"].tolist()
         )
         if st.button("🎬 선택한 영화 상세보기"):
