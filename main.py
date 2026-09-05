@@ -50,7 +50,7 @@ st.markdown("""
         background: #ffffff;
         border: 2px solid #e2e8f0;
         border-radius: 16px;
-        padding: 24px;
+        padding: 20px;
         margin-bottom: 20px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
         transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
@@ -79,6 +79,31 @@ st.markdown("""
     .ticket-box::before { left: -12px; }
     .ticket-box::after { right: -12px; }
 
+    /* 티켓 포스터 이미지 컨테이너 */
+    .ticket-poster-container {
+        width: 100%;
+        height: 320px;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 15px;
+        background-color: #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .ticket-poster-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .ticket-no-poster {
+        color: #94a3b8;
+        font-weight: 700;
+        font-size: 0.9rem;
+    }
+
     /* 티켓 순위 뱃지 */
     .ticket-rank-badge {
         display: inline-block;
@@ -96,7 +121,7 @@ st.markdown("""
 
     /* 티켓 내부 텍스트 스타일 */
     .ticket-movie-title {
-        font-size: 1.4rem;
+        font-size: 1.3rem;
         font-weight: 800;
         color: #0f172a;
         margin-bottom: 6px;
@@ -106,16 +131,16 @@ st.markdown("""
     }
     .ticket-meta {
         color: #64748b;
-        font-size: 0.88rem;
-        margin-bottom: 16px;
+        font-size: 0.85rem;
+        margin-bottom: 14px;
     }
 
     /* 티켓 지표(수치) 영역 */
     .ticket-data-grid {
         display: flex;
-        gap: 15px;
+        gap: 10px;
         background-color: #f1f5f9;
-        padding: 12px 16px;
+        padding: 10px 14px;
         border-radius: 10px;
         border-left: 4px solid #e50914;
     }
@@ -123,28 +148,28 @@ st.markdown("""
         flex: 1;
     }
     .ticket-data-label {
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         color: #64748b;
         font-weight: 700;
     }
     .ticket-data-value {
-        font-size: 1.1rem;
+        font-size: 1.05rem;
         color: #0f172a;
         font-weight: 800;
     }
 
     /* 티켓 하단 바코드 연출 디자인 */
     .ticket-stub-barcode {
-        margin-top: 18px;
-        padding-top: 12px;
+        margin-top: 16px;
+        padding-top: 10px;
         border-top: 2px dashed #e2e8f0;
         display: flex;
         justify-content: space-between;
         align-items: center;
         color: #94a3b8;
         font-family: monospace;
-        font-size: 0.8rem;
-        letter-spacing: 2px;
+        font-size: 0.75rem;
+        letter-spacing: 1px;
     }
 
     /* 탭 메뉴 스타일 정돈 */
@@ -342,7 +367,7 @@ else:
     df["순위변동"] = df["rankInten"].apply(format_rank_change)
 
     # -------------------------------------------------------------
-    # 📌 [1번 적용] 주요 지표 KPI 요약 카드 영역
+    # 주요 지표 KPI 요약 카드 영역
     # -------------------------------------------------------------
     total_audi = df["audiCnt"].sum()
     top1_audi = df.iloc[0]["audiCnt"] if len(df) > 0 else 0
@@ -373,16 +398,28 @@ else:
         st.markdown(f"##### 📢 **{display_dt_str}** 관객 발권 현황")
         st.write("")
 
-        # TOP 3 영화를 3열의 티켓 카드로 배치
+        # TOP 3 영화를 3열의 티켓 카드로 배치 (포스터 이미지 추가됨)
         top3_cols = st.columns(3)
         for i in range(min(3, len(df))):
             item = df.iloc[i]
             rank_badge_class = "top1" if item['rank'] == 1 else ""
             
+            # 포스터 이미지 정보 조회
+            movie_detail = fetch_movie_detail(item['movieNm'])
+            poster_url = movie_detail.get('poster_url')
+            
+            if poster_url:
+                poster_html = f'<img src="{poster_url}" class="ticket-poster-img" alt="{item["movieNm"]} 포스터">'
+            else:
+                poster_html = '<div class="ticket-no-poster">🖼️ 포스터 이미지 없음</div>'
+
             with top3_cols[i]:
                 st.markdown(f"""
                     <div class="ticket-box">
                         <span class="ticket-rank-badge {rank_badge_class}">NO. {item['rank']} TICKET</span>
+                        <div class="ticket-poster-container">
+                            {poster_html}
+                        </div>
                         <div class="ticket-movie-title">{item['movieNm']}</div>
                         <div class="ticket-meta">개봉일: {item['openDt']} | 변동: {item['순위변동']}</div>
                         <div class="ticket-data-grid">
@@ -425,7 +462,7 @@ else:
                 if st.button(f"상세보기", key=f"tkt_btn_{i}"):
                     show_movie_dialog(item["movieNm"])
 
-    # TAB 2: 📌 [4번 적용] 인터랙티브 심층 분석 차트 (Altair 사용)
+    # TAB 2: 인터랙티브 심층 분석 차트
     with tab2:
         st.markdown("#### 📊 박스오피스 관객수 및 시장 점유율 분석")
         st.write("")
@@ -436,14 +473,13 @@ else:
             st.subheader("🥇 Top 5 영화 당일 관객수")
             top5_df = df.head(5).copy()
             
-            # 가로 막대 차트 생성 (영화 제목이 길어도 시각적으로 우수함)
             bar_chart = alt.Chart(top5_df).mark_bar(cornerRadiusEnd=6).encode(
                 x=alt.X("audiCnt:Q", title="당일 관객수 (명)", axis=alt.Axis(format="~s")),
                 y=alt.Y("movieNm:N", title=None, sort="-x"),
                 color=alt.Condition(
                     alt.datum.rank == 1,
-                    alt.value("#e50914"), # 1위는 레드
-                    alt.value("#334155")  # 나머지는 다크 그레이
+                    alt.value("#e50914"),
+                    alt.value("#334155")
                 ),
                 tooltip=[
                     alt.Tooltip("rank:O", title="순위"),
@@ -453,7 +489,6 @@ else:
                 ]
             ).properties(height=320)
 
-            # 차트 상단 수치 텍스트 표시
             text = bar_chart.mark_text(
                 align='left',
                 baseline='middle',
@@ -469,7 +504,6 @@ else:
         with chart_col2:
             st.subheader("🍕 관객 점유율 (Top 5 vs 기타)")
             
-            # 파이 차트용 데이터 재구성
             pie_data = top5_df[["movieNm", "audiCnt"]].copy()
             others_audi = df.iloc[5:]["audiCnt"].sum() if len(df) > 5 else 0
             if others_audi > 0:
@@ -498,7 +532,6 @@ else:
 
         st.subheader("📈 당일 관객수 vs 누적 관객수 이중 비교 (Top 10)")
         
-        # 당일 vs 누적 관객 비교 꺾은선/막대 혼합 차트
         base = alt.Chart(df.head(10)).encode(
             x=alt.X("movieNm:N", sort=None, title="영화명", axis=alt.Axis(labelAngle=-25))
         )
