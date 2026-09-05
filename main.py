@@ -12,63 +12,111 @@ st.set_page_config(
 )
 
 # -------------------------------------------------------------
-# 🎨 극장(영화관) 분위기의 커스텀 CSS 스타일 적용
+# 🎨 극장 스크린 및 가로 스크롤 분위기 커스텀 CSS
 # -------------------------------------------------------------
 st.markdown("""
     <style>
-    /* 전체 배경을 어두운 영화관 느낌으로 설정 */
+    /* 전체 배경: 아늑하고 어두운 영화관 상영관 내부 */
     .stApp {
-        background-color: #0f0f14;
+        background-color: #0a0a0f;
         color: #e0e0e0;
     }
-    /* 타이틀 헤더 디자인 */
+
+    /* 영화관 헤더 */
     .cinema-header {
         text-align: center;
-        padding: 20px 0;
-        background: linear-gradient(180deg, #2b0000 0%, #0f0f14 100%);
+        padding: 15px 0;
+        background: linear-gradient(180deg, #1f0505 0%, #0a0a0f 100%);
         border-bottom: 2px solid #e50914;
-        margin-bottom: 25px;
-        border-radius: 10px;
+        margin-bottom: 20px;
     }
     .cinema-title {
         color: #e50914;
-        font-size: 2.3rem;
-        font-weight: 800;
-        text-shadow: 0 0 10px rgba(229, 9, 20, 0.7);
+        font-size: 2.2rem;
+        font-weight: 900;
+        text-shadow: 0 0 12px rgba(229, 9, 20, 0.8);
         margin: 0;
     }
-    .cinema-subtitle {
-        color: #aaaaaa;
-        font-size: 1rem;
-        margin-top: 5px;
+
+    /* 🎬 영화관 대형 스크린 틀 (Cinema Screen Box) */
+    .screen-container {
+        background-color: #12131a;
+        border: 4px solid #2a2c3d;
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 0 25px rgba(229, 9, 20, 0.15), inset 0 0 15px rgba(0, 0, 0, 0.8);
+        margin-bottom: 20px;
     }
-    /* 티켓 형태의 카드 스타일 */
+
+    /* 스크린 빛나는 상단 바 */
+    .screen-top-glow {
+        height: 4px;
+        background: linear-gradient(90deg, transparent, #e50914, transparent);
+        margin-bottom: 15px;
+    }
+
+    /* 가로 스크롤 가능한 영화 포스터 컨테이너 */
+    .horizontal-scroll-container {
+        display: flex;
+        overflow-x: auto;
+        gap: 15px;
+        padding: 10px 5px;
+        scroll-behavior: smooth;
+    }
+    .horizontal-scroll-container::-webkit-scrollbar {
+        height: 8px;
+    }
+    .horizontal-scroll-container::-webkit-scrollbar-thumb {
+        background: #e50914;
+        border-radius: 4px;
+    }
+    .horizontal-scroll-container::-webkit-scrollbar-track {
+        background: #1a1a24;
+    }
+
+    /* 영화 카드 스타일 */
+    .movie-card {
+        min-width: 200px;
+        max-width: 200px;
+        background: #181922;
+        border: 1px solid #2d2f40;
+        border-radius: 8px;
+        padding: 10px;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    /* 티켓 형태 카드 */
     .ticket-card {
-        background: linear-gradient(135deg, #1f1f2e 0%, #161622 100%);
-        border: 1px solid #33334d;
+        background: linear-gradient(135deg, #1c1d2a 0%, #12131c 100%);
         border-left: 5px solid #e50914;
         border-radius: 8px;
         padding: 15px;
         box-shadow: 0 4px 10px rgba(0,0,0,0.5);
     }
-    /* 버튼 스타일 */
-    .stButton > button {
-        background-color: #e50914;
-        color: white;
+
+    /* 탭 스타일 조정 */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+        background-color: #161722;
+        padding: 8px;
+        border-radius: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        color: #aaaaaa;
         border-radius: 5px;
-        border: none;
         font-weight: bold;
     }
-    .stButton > button:hover {
-        background-color: #b20710;
-        color: white;
+    .stTabs [aria-selected="true"] {
+        background-color: #e50914 !important;
+        color: white !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
 
 # -------------------------------------------------------------
-# 1. KOBIS API 박스오피스 데이터 호출 (캐싱 1시간)
+# 1. KOBIS API 데이터 가져오기 (캐싱 1시간)
 # -------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_box_office_data(api_key, target_date):
@@ -82,7 +130,6 @@ def fetch_box_office_data(api_key, target_date):
         
         data = response.json()
         
-        # faultInfo 오류가 돌아온 경우
         if "faultInfo" in data:
             error_message = data["faultInfo"].get("message", "알 수 없는 API 오류가 발생했습니다.")
             return None, f"API 오류: {error_message}"
@@ -90,7 +137,6 @@ def fetch_box_office_data(api_key, target_date):
         box_office_result = data.get("boxOfficeResult", {})
         daily_list = box_office_result.get("dailyBoxOfficeList", [])
         
-        # 목록이 비어있는 경우
         if not daily_list:
             return None, "EMPTY_LIST"
             
@@ -119,7 +165,6 @@ def fetch_movie_detail(movie_name):
                 movie_data = results[0]
                 movie_id = movie_data.get("id")
                 
-                # 관람 등급 조회
                 release_url = f"https://api.themoviedb.org/3/movie/{movie_id}/release_dates"
                 rel_res = requests.get(release_url, params={"api_key": params["api_key"]})
                 age_rating = "정보 없음"
@@ -156,7 +201,7 @@ def fetch_movie_detail(movie_name):
 
 
 # -------------------------------------------------------------
-# 3. 영화 상세 정보 팝업창 (Dialog)
+# 3. 영화 상세 정보 팝업 모달
 # -------------------------------------------------------------
 @st.dialog("🎬 영화 상세 정보")
 def show_movie_dialog(movie_name):
@@ -182,57 +227,55 @@ def show_movie_dialog(movie_name):
 
 
 # -------------------------------------------------------------
-# 메인 화면 구성
+# 메인 헤더 및 컨트롤러
 # -------------------------------------------------------------
-
-# 헤더
 st.markdown("""
     <div class="cinema-header">
-        <h1 class="cinema-title">🍿 CINEMA BOX OFFICE 🍿</h1>
-        <p class="cinema-subtitle">극장 스크린으로 확인하는 일별 박스오피스</p>
+        <h1 class="cinema-title">🍿 CINEMA SCREEN BOX OFFICE 🍿</h1>
+        <p style="color:#aaa; margin-top:5px;">스크린 속으로 들어온 박스오피스 상영관</p>
     </div>
 """, unsafe_allow_html=True)
 
-# Secrets 키 확인
+# Secrets 검증
 if "KOBIS_KEY" not in st.secrets:
     st.error("⚠️ 인증키가 설정되지 않았습니다. Streamlit Secrets에 `KOBIS_KEY`를 등록해 주세요.")
     st.stop()
 
 api_key = st.secrets["KOBIS_KEY"]
 
-# 한국 시간(KST) 기준 날짜 계산
+# 날짜 설정
 kst = pytz.timezone("Asia/Seoul")
 now_kst = datetime.datetime.now(kst)
 yesterday = (now_kst - datetime.timedelta(days=1)).date()
 
-# 달력 선택 (최대 어제까지)
-col_date, col_empty = st.columns([1, 2])
+col_date, col_info = st.columns([1, 2])
 with col_date:
     selected_date = st.date_input(
-        "📅 조회할 날짜를 선택하세요",
+        "📅 상영 날짜 선택",
         value=yesterday,
         max_value=yesterday,
-        help="오늘 자 데이터는 아직 집계 전이므로 어제 날짜까지 선택할 수 있습니다."
+        help="오늘 데이터는 아직 집계 전이므로 어제 날짜까지 선택 가능합니다."
     )
 
 target_dt_str = selected_date.strftime("%Y%m%d")
 display_dt_str = selected_date.strftime("%Y년 %m월 %d일")
 
-st.markdown(f"##### 🎟️ **{display_dt_str}** 상영 결과")
-
 # API 호출
 movie_list, error_msg = fetch_box_office_data(api_key, target_dt_str)
 
-# 데이터 예외 처리 및 안내
+# -------------------------------------------------------------
+# 📺 극장 스크린 영역 (SCREEN BOX)
+# -------------------------------------------------------------
+st.markdown('<div class="screen-top-glow"></div>', unsafe_allow_html=True)
+
 if error_msg == "EMPTY_LIST":
     st.warning("⚠️ **그날은 아직 집계 전입니다.** (선택하신 날짜의 박스오피스 데이터가 생성되지 않았습니다.)")
 elif error_msg:
     st.error("❌ 데이터를 가져오는 데 실패했습니다.")
     st.info(f"💡 **확인 사항:** KOBIS API 키 설정 및 하루 호출 제한수를 확인해 주세요.\n\n({error_msg})")
 else:
-    # 데이터 처리
+    # 데이터 전처리
     df = pd.DataFrame(movie_list)
-    
     numeric_cols = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt", "showCnt"]
     for col in numeric_cols:
         if col in df.columns:
@@ -240,7 +283,7 @@ else:
             
     df = df.sort_values("rank").reset_index(drop=True)
 
-    # 순위 증감 포맷팅
+    # 순위 증감 화살표 포맷ting
     def format_rank_change(val):
         if val > 0:
             return f"🔴 +{val} ▲"
@@ -251,68 +294,77 @@ else:
 
     df["순위변동"] = df["rankInten"].apply(format_rank_change)
 
-    # 1위 영화 하이라이트
-    top_1 = df.iloc[0]
-    st.markdown("---")
-    st.markdown(f"### 🏆 오늘의 1위 영화: **{top_1['movieNm']}**")
-    
-    m_col1, m_col2, m_col3 = st.columns(3)
-    with m_col1:
-        st.markdown(f"""
-            <div class="ticket-card">
-                <small style="color:#aaa;">일일 관객수</small>
-                <h2 style="color:#e50914; margin:0;">{top_1['audiCnt']:,} 명</h2>
-            </div>
-        """, unsafe_allow_html=True)
-    with m_col2:
-        st.markdown(f"""
-            <div class="ticket-card">
-                <small style="color:#aaa;">누적 관객수</small>
-                <h2 style="color:#ffffff; margin:0;">{top_1['audiAcc']:,} 명</h2>
-            </div>
-        """, unsafe_allow_html=True)
-    with m_col3:
-        st.markdown(f"""
-            <div class="ticket-card">
-                <small style="color:#aaa;">상영 스크린수</small>
-                <h2 style="color:#ffffff; margin:0;">{top_1['scrnCnt']:,} 개</h2>
-            </div>
-        """, unsafe_allow_html=True)
+    # -------------------------------------------------------------
+    # 🎞️ 스크린 안에서 슬라이드(탭) 형태로 콘텐츠 넘겨보기
+    # -------------------------------------------------------------
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🏆 1위 영화 하이라이트", 
+        "📊 관객수 TOP 5 차트", 
+        "📋 전체 순위표", 
+        "🔍 영화 상세 검색"
+    ])
 
-    if st.button(f"🔍 '{top_1['movieNm']}' 상세보기 및 줄거리", key="top1_btn"):
-        show_movie_dialog(top_1["movieNm"])
+    # 탭 1: 1위 영화 하이라이트
+    with tab1:
+        top_1 = df.iloc[0]
+        st.markdown(f"## 🥇 **{top_1['movieNm']}**")
+        st.caption(f"개봉일: {top_1['openDt']} | 순위 변동: {top_1['순위변동']}")
+        
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown(f"""
+                <div class="ticket-card">
+                    <small style="color:#aaa;">어제 관객수</small>
+                    <h2 style="color:#e50914; margin:0;">{top_1['audiCnt']:,} 명</h2>
+                </div>
+            """, unsafe_allow_html=True)
+        with c2:
+            st.markdown(f"""
+                <div class="ticket-card">
+                    <small style="color:#aaa;">누적 관객수</small>
+                    <h2 style="color:#ffffff; margin:0;">{top_1['audiAcc']:,} 명</h2>
+                </div>
+            """, unsafe_allow_html=True)
+        with c3:
+            st.markdown(f"""
+                <div class="ticket-card">
+                    <small style="color:#aaa;">스크린 수</small>
+                    <h2 style="color:#ffffff; margin:0;">{top_1['scrnCnt']:,} 개</h2>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        st.write("")
+        if st.button(f"🎬 '{top_1['movieNm']}' 상세 줄거리 보기", key="top1_btn"):
+            show_movie_dialog(top_1["movieNm"])
 
-    st.markdown("---")
+    # 탭 2: TOP 5 관객수 차트
+    with tab2:
+        st.subheader("📊 관객수 TOP 5 영화 차트")
+        top_5_df = df.head(5)
+        st.bar_chart(data=top_5_df, x="movieNm", y="audiCnt", use_container_width=True)
 
-    # 상위 5개 영화 그래프
-    st.subheader("📊 관객수 TOP 5 차트")
-    top_5_df = df.head(5)
-    st.bar_chart(data=top_5_df, x="movieNm", y="audiCnt", use_container_width=True)
+    # 탭 3: 전체 순위표
+    with tab3:
+        st.subheader("📋 전체 박스오피스 순위 (TOP 10)")
+        display_df = df[["rank", "순위변동", "movieNm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
+        display_df.columns = ["순위", "전날 대비", "영화명", "개봉일", "관객수", "누적관객", "스크린수"]
 
-    st.markdown("---")
+        st.dataframe(
+            display_df.style.format({
+                "관객수": "{:,}",
+                "누적관객": "{:,}",
+                "스크린수": "{:,}"
+            }),
+            use_container_width=True,
+            hide_index=True
+        )
 
-    # 전체 순위 표
-    st.subheader("📋 박스오피스 순위표")
-
-    display_df = df[["rank", "순위변동", "movieNm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
-    display_df.columns = ["순위", "전날 대비", "영화명", "개봉일", "관객수", "누적관객", "스크린수"]
-
-    st.dataframe(
-        display_df.style.format({
-            "관객수": "{:,}",
-            "누적관객": "{:,}",
-            "스크린수": "{:,}"
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
-
-    # 영화 상세 선택
-    st.markdown("##### 💡 관심 있는 영화를 선택하여 상세보기")
-    selected_movie = st.selectbox(
-        "줄거리 및 상세 정보를 확인할 영화를 고르세요:",
-        options=df["movieNm"].tolist()
-    )
-    
-    if st.button("🎬 선택한 영화 상세보기"):
-        show_movie_dialog(selected_movie)
+    # 탭 4: 영화 상세 검색
+    with tab4:
+        st.subheader("🔍 영화별 상세 줄거리 & 정보")
+        selected_movie = st.selectbox(
+            "줄거리 및 상세 정보를 확인할 영화를 고르세요:",
+            options=df["movieNm"].tolist()
+        )
+        if st.button("🎬 선택한 영화 줄거리 보기"):
+            show_movie_dialog(selected_movie)
