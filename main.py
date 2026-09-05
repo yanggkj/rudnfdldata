@@ -3,254 +3,173 @@ import requests
 import pandas as pd
 import pytz
 import streamlit as st
+import altair as alt
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="박스오피스 3D 포디움 & 티켓",
-    page_icon="🏆",
+    page_title="모바일 티켓 박스오피스",
+    page_icon="🎟️",
     layout="wide"
 )
 
 # -------------------------------------------------------------
-# 🎨 1번(영사기 빔 & 글로우) + 3번(플로팅 애니메이션) 포인트 적용 CSS
+# 🎨 화이트 배경 + 실물 모바일 티켓(Ticket) UI/UX CSS
 # -------------------------------------------------------------
 st.markdown("""
     <style>
-    /* 메인 바탕화면: 눈이 편안한 스톤 화이트 라이트 모드 */
+    /* 전체 메인 배경: 눈이 편안한 소프트 화이트 */
     .stApp {
         background-color: #f8fafc;
         color: #0f172a;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* -------------------------------------------------------------
-       ✨ 3번 구현: 둥둥 떠다니는 Floating Pulse 애니메이션 Keyframes
-       ------------------------------------------------------------- */
-    @keyframes floatIcon {
-        0% { transform: translateY(0px) rotate(0deg); }
-        50% { transform: translateY(-8px) rotate(3deg); }
-        100% { transform: translateY(0px) rotate(0deg); }
-    }
-
-    /* -------------------------------------------------------------
-       ✨ 1번 구현: 영사기 라이트 빔(Light Beam) 애니메이션 Keyframes
-       ------------------------------------------------------------- */
-    @keyframes projectorBeam {
-        0% { opacity: 0.35; transform: rotate(-10deg) scaleY(1); }
-        50% { opacity: 0.65; transform: rotate(-10deg) scaleY(1.08); }
-        100% { opacity: 0.35; transform: rotate(-10deg) scaleY(1); }
-    }
-
-    /* 상단 타이틀 헤더 */
-    .podium-header {
+    /* 상단 타이틀 바 */
+    .ticket-header {
         text-align: center;
         padding: 10px 0 25px 0;
         border-bottom: 2px dashed #cbd5e1;
-        margin-bottom: 35px;
+        margin-bottom: 25px;
     }
-    .podium-title {
+    .ticket-header-title {
         color: #0f172a;
-        font-size: 2.3rem;
+        font-size: 2.2rem;
         font-weight: 900;
         letter-spacing: -1px;
         margin: 0;
     }
-    .podium-sub {
+    .ticket-header-sub {
         color: #64748b;
         font-size: 0.95rem;
         margin-top: 6px;
     }
 
-    /* 포디움 단상 및 실물 티켓 카드 공통 스타일 */
-    .podium-card {
+    /* 🎟️ 실물 티켓 카드 스타일 디자인 */
+    .ticket-box {
         position: relative;
         background: #ffffff;
         border: 2px solid #e2e8f0;
         border-radius: 16px;
-        padding: 20px;
-        text-align: center;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
         overflow: hidden;
     }
-
-    /* 마우스 호버 시 티켓이 위로 떠오르는 효과 */
-    .podium-card:hover {
-        transform: translateY(-8px);
-        box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.12);
+    
+    /* 마우스 호버 시 티켓이 살짝 들리는 인터랙션 */
+    .ticket-box:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
         border-color: #e50914;
     }
 
-    /* 🎟️ 티켓 좌우 절취 펀칭 홀 */
-    .podium-card::before, .podium-card::after {
+    /* 티켓 좌우 절취 홈 (펀칭 홀) 효과 */
+    .ticket-box::before, .ticket-box::after {
         content: "";
         position: absolute;
         top: 50%;
-        width: 18px;
-        height: 18px;
+        width: 20px;
+        height: 20px;
         background-color: #f8fafc;
         border: 2px solid #e2e8f0;
         border-radius: 50%;
         transform: translateY(-50%);
-        z-index: 5;
     }
-    .podium-card::before { left: -11px; }
-    .podium-card::after { right: -11px; }
+    .ticket-box::before { left: -12px; }
+    .ticket-box::after { right: -12px; }
 
-    /* 🥇 1위 포디움: 1번(황금빛 글로우 & 영사기 빔) 적용 */
-    .podium-1st {
-        flex: 1.15;
-        min-height: 390px;
-        border: 3px solid #f59e0b;
-        background: linear-gradient(180deg, #ffffff 0%, #fffbebe6 100%);
-        z-index: 2;
-        /* ✨ 1번 포인트: 은은하게 사방으로 번지는 황금빛 네온 글로우 */
-        box-shadow: 0 0 25px rgba(245, 158, 11, 0.35), 0 10px 20px rgba(0,0,0,0.05);
-    }
-    
-    /* ✨ 1번 포인트: 1위 카드 우상단 영사기 광선 빔(Light Beam) */
-    .podium-1st::before {
-        content: "";
-        position: absolute;
-        top: -60px;
-        right: -30px;
-        width: 140px;
-        height: 250px;
-        background: linear-gradient(135deg, rgba(251, 191, 36, 0.45) 0%, rgba(255, 255, 255, 0) 70%);
-        transform: rotate(-10deg);
-        pointer-events: none;
-        z-index: 1;
-        animation: projectorBeam 3s infinite ease-in-out;
-    }
-
-    /* ✨ 3번 포인트: Floating 애니메이션 적용 아이콘 */
-    .floating-icon {
+    /* 티켓 순위 뱃지 */
+    .ticket-rank-badge {
         display: inline-block;
-        font-size: 2.2rem;
-        margin-bottom: 2px;
-        animation: floatIcon 2.5s infinite ease-in-out;
-    }
-
-    /* 🥈 2위 포디움 */
-    .podium-2nd {
-        flex: 1;
-        min-height: 330px;
-        border: 2px solid #94a3b8;
-    }
-    .podium-2nd .rank-tag {
-        background-color: #64748b;
+        background-color: #0f172a;
         color: #ffffff;
-    }
-
-    /* 🥉 3위 포디움 */
-    .podium-3rd {
-        flex: 1;
-        min-height: 300px;
-        border: 2px solid #b45309;
-    }
-    .podium-3rd .rank-tag {
-        background-color: #b45309;
-        color: #ffffff;
-    }
-
-    /* 랭킹 태그 뱃지 */
-    .rank-tag {
-        display: inline-block;
-        padding: 4px 14px;
-        border-radius: 20px;
-        font-size: 0.85rem;
         font-weight: 800;
-        margin-bottom: 10px;
-        position: relative;
-        z-index: 2;
+        font-size: 0.85rem;
+        padding: 4px 12px;
+        border-radius: 20px;
+        margin-bottom: 12px;
+    }
+    .ticket-rank-badge.top1 {
+        background-color: #e50914;
     }
 
-    /* 영화 제목 및 정보 */
-    .movie-title {
-        font-size: 1.35rem;
+    /* 티켓 내부 텍스트 스타일 */
+    .ticket-movie-title {
+        font-size: 1.4rem;
         font-weight: 800;
         color: #0f172a;
         margin-bottom: 6px;
-        word-break: keep-all;
-        position: relative;
-        z-index: 2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
-    .movie-meta {
-        font-size: 0.85rem;
+    .ticket-meta {
         color: #64748b;
+        font-size: 0.88rem;
         margin-bottom: 16px;
-        position: relative;
-        z-index: 2;
     }
 
-    /* 지표 박스 */
-    .data-pill {
+    /* 티켓 지표(수치) 영역 */
+    .ticket-data-grid {
+        display: flex;
+        gap: 15px;
         background-color: #f1f5f9;
+        padding: 12px 16px;
         border-radius: 10px;
-        padding: 10px;
-        margin-bottom: 12px;
-        position: relative;
-        z-index: 2;
+        border-left: 4px solid #e50914;
     }
-    .data-label {
+    .ticket-data-item {
+        flex: 1;
+    }
+    .ticket-data-label {
         font-size: 0.75rem;
         color: #64748b;
         font-weight: 700;
     }
-    .data-val {
-        font-size: 1.15rem;
+    .ticket-data-value {
+        font-size: 1.1rem;
         color: #0f172a;
         font-weight: 800;
     }
 
-    /* 바코드 절취선 */
-    .ticket-barcode {
-        border-top: 2px dashed #cbd5e1;
-        padding-top: 10px;
-        margin-top: 10px;
-        font-family: monospace;
-        letter-spacing: 2px;
-        color: #94a3b8;
-        font-size: 0.75rem;
-        position: relative;
-        z-index: 2;
-    }
-
-    /* 일반 랭킹 티켓 카드 (4위~10위) */
-    .normal-ticket {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 14px 20px;
-        margin-bottom: 10px;
+    /* 티켓 하단 바코드 연출 디자인 */
+    .ticket-stub-barcode {
+        margin-top: 18px;
+        padding-top: 12px;
+        border-top: 2px dashed #e2e8f0;
         display: flex;
-        align-items: center;
         justify-content: space-between;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-        transition: border-color 0.2s ease;
-    }
-    .normal-ticket:hover {
-        border-color: #e50914;
+        align-items: center;
+        color: #94a3b8;
+        font-family: monospace;
+        font-size: 0.8rem;
+        letter-spacing: 2px;
     }
 
-    /* 탭 메뉴 스타일 */
+    /* 탭 메뉴 스타일 정돈 */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: #e2e8f0;
         padding: 6px;
         border-radius: 10px;
     }
+    .stTabs [data-baseweb="tab"] {
+        color: #475569 !important;
+        font-weight: 700;
+        border-radius: 8px;
+    }
     .stTabs [aria-selected="true"] {
         background-color: #ffffff !important;
         color: #e50914 !important;
-        font-weight: bold;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
     }
     </style>
 """, unsafe_allow_html=True)
 
 
 # -------------------------------------------------------------
-# 1. KOBIS API 데이터 불러오기
+# 1. KOBIS API 데이터 불러오기 (캐싱)
 # -------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_box_office_data(api_key, target_date):
@@ -281,7 +200,7 @@ def fetch_box_office_data(api_key, target_date):
 
 
 # -------------------------------------------------------------
-# 2. TMDB Open API 영화 상세 정보
+# 2. TMDB API 영화 상세 정보 불러오기
 # -------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_movie_detail(movie_name):
@@ -337,7 +256,7 @@ def fetch_movie_detail(movie_name):
 # -------------------------------------------------------------
 # 3. 영화 상세 정보 모달
 # -------------------------------------------------------------
-@st.dialog("🎬 상세 영화 티켓 정보")
+@st.dialog("🎬 모바일 티켓 상세보기")
 def show_movie_dialog(movie_name):
     st.markdown(f"### **{movie_name}**")
     
@@ -361,12 +280,12 @@ def show_movie_dialog(movie_name):
 
 
 # -------------------------------------------------------------
-# 메인 타이틀
+# 헤더 레이아웃
 # -------------------------------------------------------------
 st.markdown("""
-    <div class="podium-header">
-        <h1 class="podium-title">🏆 3D PODIUM & TICKET BOX</h1>
-        <div class="podium-sub">영사기 라이트와 3D 포디움으로 보는 실시간 박스오피스</div>
+    <div class="ticket-header">
+        <h1 class="ticket-header-title">🎟️ DAILY MOVIE TICKET</h1>
+        <div class="ticket-header-sub">실물 모바일 티켓 형태로 확인하는 실시간 일별 박스오피스</div>
     </div>
 """, unsafe_allow_html=True)
 
@@ -394,6 +313,7 @@ with col_date:
 target_dt_str = selected_date.strftime("%Y%m%d")
 display_dt_str = selected_date.strftime("%Y년 %m월 %d일")
 
+# 데이터 불러오기
 movie_list, error_msg = fetch_box_office_data(api_key, target_dt_str)
 
 if error_msg == "EMPTY_LIST":
@@ -402,6 +322,7 @@ elif error_msg:
     st.error("❌ 데이터를 가져오는 데 실패했습니다.")
     st.info(f"💡 **확인 사항:** KOBIS API 키 설정 상태를 확인해 주세요.\n\n({error_msg})")
 else:
+    # 데이터 가공
     df = pd.DataFrame(movie_list)
     numeric_cols = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt", "showCnt"]
     for col in numeric_cols:
@@ -421,124 +342,182 @@ else:
     df["순위변동"] = df["rankInten"].apply(format_rank_change)
 
     # -------------------------------------------------------------
-    # 탭 메뉴
+    # 📌 [1번 적용] 주요 지표 KPI 요약 카드 영역
+    # -------------------------------------------------------------
+    total_audi = df["audiCnt"].sum()
+    top1_audi = df.iloc[0]["audiCnt"] if len(df) > 0 else 0
+    top1_share = (top1_audi / total_audi * 100) if total_audi > 0 else 0
+    new_movies_cnt = len(df[df["rankOldAndNew"] == "NEW"]) if "rankOldAndNew" in df.columns else 0
+    max_screens = df["scrnCnt"].max()
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric(label="🎬 Top10 총 관객수", value=f"{total_audi:,} 명")
+    m2.metric(label="👑 1위 관객 점유율", value=f"{top1_share:.1f} %")
+    m3.metric(label="✨ 신규 진입 영화", value=f"{new_movies_cnt} 편")
+    m4.metric(label="📺 최고 스크린 수", value=f"{max_screens:,} 개")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # -------------------------------------------------------------
+    # 탭 구성
     # -------------------------------------------------------------
     tab1, tab2, tab3, tab4 = st.tabs([
-        "🏆 TOP 3 포디움 시상대", 
-        "📊 관객수 TOP 5 차트", 
+        "🎟️ 모바일 티켓 랭킹", 
+        "📊 박스오피스 심층 차트", 
         "📋 전체 순위표", 
         "🔍 상세 검색"
     ])
 
-    # TAB 1: 3D 입체 포디움 + 1번(빔/글로우) + 3번(플로팅 애니메이션)
+    # TAB 1: 실물 모바일 티켓 형태 카드 리스트
     with tab1:
-        st.markdown(f"##### 📢 **{display_dt_str}** 박스오피스 TOP 3 영예의 순간")
+        st.markdown(f"##### 📢 **{display_dt_str}** 관객 발권 현황")
         st.write("")
 
-        if len(df) >= 3:
-            m1 = df.iloc[0] # 1위
-            m2 = df.iloc[1] # 2위
-            m3 = df.iloc[2] # 3위
-
-            col_p2, col_p1, col_p3 = st.columns([1, 1.15, 1])
-
-            # 🥈 2위 포디움 (🍿 팝콘 플로팅 아이콘)
-            with col_p2:
+        # TOP 3 영화를 3열의 티켓 카드로 배치
+        top3_cols = st.columns(3)
+        for i in range(min(3, len(df))):
+            item = df.iloc[i]
+            rank_badge_class = "top1" if item['rank'] == 1 else ""
+            
+            with top3_cols[i]:
                 st.markdown(f"""
-                    <div class="podium-card podium-2nd">
-                        <div class="floating-icon">🍿</div>
-                        <span class="rank-tag">2ND PLACE</span>
-                        <div class="movie-title">{m2['movieNm']}</div>
-                        <div class="movie-meta">개봉일 {m2['openDt']} | {m2['순위변동']}</div>
-                        <div class="data-pill">
-                            <div class="data-label">어제 관객수</div>
-                            <div class="data-val">{m2['audiCnt']:,} 명</div>
+                    <div class="ticket-box">
+                        <span class="ticket-rank-badge {rank_badge_class}">NO. {item['rank']} TICKET</span>
+                        <div class="ticket-movie-title">{item['movieNm']}</div>
+                        <div class="ticket-meta">개봉일: {item['openDt']} | 변동: {item['순위변동']}</div>
+                        <div class="ticket-data-grid">
+                            <div class="ticket-data-item">
+                                <div class="ticket-data-label">어제 관객</div>
+                                <div class="ticket-data-value">{item['audiCnt']:,}명</div>
+                            </div>
+                            <div class="ticket-data-item">
+                                <div class="ticket-data-label">누적 관객</div>
+                                <div class="ticket-data-value">{item['audiAcc']:,}명</div>
+                            </div>
                         </div>
-                        <div class="data-pill">
-                            <div class="data-label">누적 관객수</div>
-                            <div class="data-val">{m2['audiAcc']:,} 명</div>
+                        <div class="ticket-stub-barcode">
+                            <span>||||||| | |||| | |||||</span>
+                            <span>#2026-BOX-{item['rank']}</span>
                         </div>
-                        <div class="ticket-barcode">||||||| | ||| #NO-2</div>
                     </div>
                 """, unsafe_allow_html=True)
-                if st.button(f"🎟️ 2위 상세 정보", key="pod_btn_2"):
-                    show_movie_dialog(m2["movieNm"])
-
-            # 🥇 1위 포디움 (👑 왕관 플로팅 + ✨ 영사기 라이트 빔 + 황금 네온 글로우)
-            with col_p1:
-                st.markdown(f"""
-                    <div class="podium-card podium-1st">
-                        <div class="floating-icon" style="font-size: 2.6rem;">👑</div>
-                        <br>
-                        <span class="rank-tag" style="background-color:#f59e0b; color:#fff;">1ST WINNER</span>
-                        <div class="movie-title" style="font-size: 1.55rem; color:#b45309;">{m1['movieNm']}</div>
-                        <div class="movie-meta">개봉일 {m1['openDt']} | {m1['순위변동']}</div>
-                        <div class="data-pill" style="background-color: #fef3c7;">
-                            <div class="data-label" style="color:#b45309;">어제 관객수</div>
-                            <div class="data-val" style="color:#78350f;">{m1['audiCnt']:,} 명</div>
-                        </div>
-                        <div class="data-pill" style="background-color: #fef3c7;">
-                            <div class="data-label" style="color:#b45309;">누적 관객수</div>
-                            <div class="data-val" style="color:#78350f;">{m1['audiAcc']:,} 명</div>
-                        </div>
-                        <div class="ticket-barcode" style="color:#d97706;">||||||||||||||| #GOLD-1</div>
-                    </div>
-                """, unsafe_allow_html=True)
-                if st.button(f"🥇 1위 상세 정보", key="pod_btn_1"):
-                    show_movie_dialog(m1["movieNm"])
-
-            # 🥉 3위 포디움 (🎬 슬레이트 플로팅 아이콘)
-            with col_p3:
-                st.markdown(f"""
-                    <div class="podium-card podium-3rd">
-                        <div class="floating-icon">🎬</div>
-                        <span class="rank-tag">3RD PLACE</span>
-                        <div class="movie-title">{m3['movieNm']}</div>
-                        <div class="movie-meta">개봉일 {m3['openDt']} | {m3['순위변동']}</div>
-                        <div class="data-pill">
-                            <div class="data-label">어제 관객수</div>
-                            <div class="data-val">{m3['audiCnt']:,} 명</div>
-                        </div>
-                        <div class="data-pill">
-                            <div class="data-label">누적 관객수</div>
-                            <div class="data-val">{m3['audiAcc']:,} 명</div>
-                        </div>
-                        <div class="ticket-barcode">||||||| | ||| #NO-3</div>
-                    </div>
-                """, unsafe_allow_html=True)
-                if st.button(f"🎟️ 3위 상세 정보", key="pod_btn_3"):
-                    show_movie_dialog(m3["movieNm"])
+                
+                if st.button(f"🎟️ '{item['movieNm']}' 티켓 정보", key=f"tkt_btn_{i}"):
+                    show_movie_dialog(item["movieNm"])
 
         st.divider()
 
-        # 4위~10위 영화 목록
-        st.markdown("##### 🎟️ NEXT RANKINGS (4위~10위)")
+        # 4위~10위 영화는 가로 스태킹 티켓 형태로 표시
+        st.markdown("##### 🎟️ NEXT RANKINGS")
         for i in range(3, min(10, len(df))):
             item = df.iloc[i]
-            c_info, c_btn = st.columns([4, 1])
-            with c_info:
+            col_tkt, col_act = st.columns([4, 1])
+            with col_tkt:
                 st.markdown(f"""
-                    <div class="normal-ticket">
-                        <div>
-                            <span style="background-color:#0f172a; color:#fff; font-weight:800; font-size:0.8rem; padding:3px 10px; border-radius:12px;">NO. {item['rank']}</span>
-                            <strong style="font-size:1.05rem; margin-left:10px;">{item['movieNm']}</strong>
-                            <span style="color:#64748b; font-size:0.85rem; margin-left:12px;">개봉: {item['openDt']} | {item['순위변동']}</span>
-                        </div>
-                        <div style="font-size:0.95rem; font-weight:700; color:#0f172a;">
-                            관객 {item['audiCnt']:,}명 <span style="font-size:0.8rem; color:#64748b; font-weight:normal;">(누적 {item['audiAcc']:,}명)</span>
-                        </div>
+                    <div class="ticket-box" style="padding: 16px 24px; margin-bottom: 10px;">
+                        <span class="ticket-rank-badge">NO. {item['rank']}</span>
+                        <strong style="font-size: 1.1rem; margin-left: 10px; color: #0f172a;">{item['movieNm']}</strong>
+                        <span style="color: #64748b; font-size:0.85rem; margin-left: 15px;">개봉: {item['openDt']} | 관객수: <b>{item['audiCnt']:,}명</b> (누적 {item['audiAcc']:,}명)</span>
                     </div>
                 """, unsafe_allow_html=True)
-            with c_btn:
+            with col_act:
                 st.write("")
-                if st.button("상세보기", key=f"norm_btn_{i}"):
+                if st.button(f"상세보기", key=f"tkt_btn_{i}"):
                     show_movie_dialog(item["movieNm"])
 
-    # TAB 2: 차트
+    # TAB 2: 📌 [4번 적용] 인터랙티브 심층 분석 차트 (Altair 사용)
     with tab2:
-        st.markdown("#### 📊 TOP 5 관객수 비교 차트")
-        top_5_df = df.head(5)
-        st.bar_chart(data=top_5_df, x="movieNm", y="audiCnt", use_container_width=True)
+        st.markdown("#### 📊 박스오피스 관객수 및 시장 점유율 분석")
+        st.write("")
+
+        chart_col1, chart_col2 = st.columns([3, 2])
+
+        with chart_col1:
+            st.subheader("🥇 Top 5 영화 당일 관객수")
+            top5_df = df.head(5).copy()
+            
+            # 가로 막대 차트 생성 (영화 제목이 길어도 시각적으로 우수함)
+            bar_chart = alt.Chart(top5_df).mark_bar(cornerRadiusEnd=6).encode(
+                x=alt.X("audiCnt:Q", title="당일 관객수 (명)", axis=alt.Axis(format="~s")),
+                y=alt.Y("movieNm:N", title=None, sort="-x"),
+                color=alt.Condition(
+                    alt.datum.rank == 1,
+                    alt.value("#e50914"), # 1위는 레드
+                    alt.value("#334155")  # 나머지는 다크 그레이
+                ),
+                tooltip=[
+                    alt.Tooltip("rank:O", title="순위"),
+                    alt.Tooltip("movieNm:N", title="영화명"),
+                    alt.Tooltip("audiCnt:Q", title="당일 관객수", format=","),
+                    alt.Tooltip("audiAcc:Q", title="누적 관객수", format=",")
+                ]
+            ).properties(height=320)
+
+            # 차트 상단 수치 텍스트 표시
+            text = bar_chart.mark_text(
+                align='left',
+                baseline='middle',
+                dx=5,
+                color='#0f172a',
+                fontWeight='bold'
+            ).encode(
+                text=alt.Text('audiCnt:Q', format=',')
+            )
+
+            st.altair_chart(bar_chart + text, use_container_width=True)
+
+        with chart_col2:
+            st.subheader("🍕 관객 점유율 (Top 5 vs 기타)")
+            
+            # 파이 차트용 데이터 재구성
+            pie_data = top5_df[["movieNm", "audiCnt"]].copy()
+            others_audi = df.iloc[5:]["audiCnt"].sum() if len(df) > 5 else 0
+            if others_audi > 0:
+                pie_data = pd.concat([
+                    pie_data, 
+                    pd.DataFrame([{"movieNm": "기타 (6~10위)", "audiCnt": others_audi}])
+                ], ignore_index=True)
+
+            pie_chart = alt.Chart(pie_data).mark_arc(innerRadius=50).encode(
+                theta=alt.Theta(field="audiCnt", type="quantitative"),
+                color=alt.Color(
+                    field="movieNm", 
+                    type="nominal", 
+                    scale=alt.Scale(scheme="category10"),
+                    legend=alt.Legend(title="영화명", orient="bottom")
+                ),
+                tooltip=[
+                    alt.Tooltip("movieNm:N", title="영화명"),
+                    alt.Tooltip("audiCnt:Q", title="관객수", format=",")
+                ]
+            ).properties(height=320)
+
+            st.altair_chart(pie_chart, use_container_width=True)
+
+        st.divider()
+
+        st.subheader("📈 당일 관객수 vs 누적 관객수 이중 비교 (Top 10)")
+        
+        # 당일 vs 누적 관객 비교 꺾은선/막대 혼합 차트
+        base = alt.Chart(df.head(10)).encode(
+            x=alt.X("movieNm:N", sort=None, title="영화명", axis=alt.Axis(labelAngle=-25))
+        )
+
+        bar_audi = base.mark_bar(opacity=0.7, color="#0284c7").encode(
+            y=alt.Y("audiCnt:Q", title="당일 관객수 (명)"),
+            tooltip=[alt.Tooltip("movieNm:N"), alt.Tooltip("audiCnt:Q", format=",")]
+        )
+
+        line_acc = base.mark_line(color="#e50914", point=True).encode(
+            y=alt.Y("audiAcc:Q", title="누적 관객수 (명)"),
+            tooltip=[alt.Tooltip("movieNm:N"), alt.Tooltip("audiAcc:Q", format=",")]
+        )
+
+        layered_chart = alt.layer(bar_audi, line_acc).resolve_scale(
+            y='independent'
+        ).properties(height=350)
+
+        st.altair_chart(layered_chart, use_container_width=True)
 
     # TAB 3: 전체 순위표
     with tab3:
