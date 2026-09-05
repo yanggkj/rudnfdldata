@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 # -------------------------------------------------------------
-# 🎨 2번(실물 티켓) + 4번(3D 입체 포디움 시상대) 결합 CSS
+# 🎨 1번(영사기 빔 & 글로우) + 3번(플로팅 애니메이션) 포인트 적용 CSS
 # -------------------------------------------------------------
 st.markdown("""
     <style>
@@ -21,6 +21,24 @@ st.markdown("""
         background-color: #f8fafc;
         color: #0f172a;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* -------------------------------------------------------------
+       ✨ 3번 구현: 둥둥 떠다니는 Floating Pulse 애니메이션 Keyframes
+       ------------------------------------------------------------- */
+    @keyframes floatIcon {
+        0% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-8px) rotate(3deg); }
+        100% { transform: translateY(0px) rotate(0deg); }
+    }
+
+    /* -------------------------------------------------------------
+       ✨ 1번 구현: 영사기 라이트 빔(Light Beam) 애니메이션 Keyframes
+       ------------------------------------------------------------- */
+    @keyframes projectorBeam {
+        0% { opacity: 0.35; transform: rotate(-10deg) scaleY(1); }
+        50% { opacity: 0.65; transform: rotate(-10deg) scaleY(1.08); }
+        100% { opacity: 0.35; transform: rotate(-10deg) scaleY(1); }
     }
 
     /* 상단 타이틀 헤더 */
@@ -43,16 +61,6 @@ st.markdown("""
         margin-top: 6px;
     }
 
-    /* 🏆 4번 구현: 3D 입체 포디움 레이아웃 컨테이너 */
-    .podium-container {
-        display: flex;
-        align-items: flex-end;
-        justify-content: center;
-        gap: 16px;
-        margin-bottom: 40px;
-        padding-top: 20px;
-    }
-
     /* 포디움 단상 및 실물 티켓 카드 공통 스타일 */
     .podium-card {
         position: relative;
@@ -73,7 +81,7 @@ st.markdown("""
         border-color: #e50914;
     }
 
-    /* 🎟️ 2번 구현: 티켓 좌우 절취 펀칭 홀 */
+    /* 🎟️ 티켓 좌우 절취 펀칭 홀 */
     .podium-card::before, .podium-card::after {
         content: "";
         position: absolute;
@@ -84,31 +92,49 @@ st.markdown("""
         border: 2px solid #e2e8f0;
         border-radius: 50%;
         transform: translateY(-50%);
+        z-index: 5;
     }
     .podium-card::before { left: -11px; }
     .podium-card::after { right: -11px; }
 
-    /* 🥇 1위 포디움 (가장 높고 화려한 골드 트로피 스타일) */
+    /* 🥇 1위 포디움: 1번(황금빛 글로우 & 영사기 빔) 적용 */
     .podium-1st {
-        flex: 1.1;
-        min-height: 380px;
+        flex: 1.15;
+        min-height: 390px;
         border: 3px solid #f59e0b;
         background: linear-gradient(180deg, #ffffff 0%, #fffbebe6 100%);
         z-index: 2;
+        /* ✨ 1번 포인트: 은은하게 사방으로 번지는 황금빛 네온 글로우 */
+        box-shadow: 0 0 25px rgba(245, 158, 11, 0.35), 0 10px 20px rgba(0,0,0,0.05);
     }
-    .podium-1st .rank-crown {
-        font-size: 2.2rem;
-        margin-bottom: 2px;
-    }
-    .podium-1st .rank-tag {
-        background-color: #f59e0b;
-        color: #ffffff;
+    
+    /* ✨ 1번 포인트: 1위 카드 우상단 영사기 광선 빔(Light Beam) */
+    .podium-1st::before {
+        content: "";
+        position: absolute;
+        top: -60px;
+        right: -30px;
+        width: 140px;
+        height: 250px;
+        background: linear-gradient(135deg, rgba(251, 191, 36, 0.45) 0%, rgba(255, 255, 255, 0) 70%);
+        transform: rotate(-10deg);
+        pointer-events: none;
+        z-index: 1;
+        animation: projectorBeam 3s infinite ease-in-out;
     }
 
-    /* 🥈 2위 포디움 (좌측 높이) */
+    /* ✨ 3번 포인트: Floating 애니메이션 적용 아이콘 */
+    .floating-icon {
+        display: inline-block;
+        font-size: 2.2rem;
+        margin-bottom: 2px;
+        animation: floatIcon 2.5s infinite ease-in-out;
+    }
+
+    /* 🥈 2위 포디움 */
     .podium-2nd {
         flex: 1;
-        min-height: 320px;
+        min-height: 330px;
         border: 2px solid #94a3b8;
     }
     .podium-2nd .rank-tag {
@@ -116,10 +142,10 @@ st.markdown("""
         color: #ffffff;
     }
 
-    /* 🥉 3위 포디움 (우측 높이) */
+    /* 🥉 3위 포디움 */
     .podium-3rd {
         flex: 1;
-        min-height: 290px;
+        min-height: 300px;
         border: 2px solid #b45309;
     }
     .podium-3rd .rank-tag {
@@ -135,6 +161,8 @@ st.markdown("""
         font-size: 0.85rem;
         font-weight: 800;
         margin-bottom: 10px;
+        position: relative;
+        z-index: 2;
     }
 
     /* 영화 제목 및 정보 */
@@ -144,11 +172,15 @@ st.markdown("""
         color: #0f172a;
         margin-bottom: 6px;
         word-break: keep-all;
+        position: relative;
+        z-index: 2;
     }
     .movie-meta {
         font-size: 0.85rem;
         color: #64748b;
         margin-bottom: 16px;
+        position: relative;
+        z-index: 2;
     }
 
     /* 지표 박스 */
@@ -157,6 +189,8 @@ st.markdown("""
         border-radius: 10px;
         padding: 10px;
         margin-bottom: 12px;
+        position: relative;
+        z-index: 2;
     }
     .data-label {
         font-size: 0.75rem;
@@ -178,6 +212,8 @@ st.markdown("""
         letter-spacing: 2px;
         color: #94a3b8;
         font-size: 0.75rem;
+        position: relative;
+        z-index: 2;
     }
 
     /* 일반 랭킹 티켓 카드 (4위~10위) */
@@ -330,7 +366,7 @@ def show_movie_dialog(movie_name):
 st.markdown("""
     <div class="podium-header">
         <h1 class="podium-title">🏆 3D PODIUM & TICKET BOX</h1>
-        <div class="podium-sub">3D 포디움 시상대와 실물 티켓으로 즐기는 일별 박스오피스</div>
+        <div class="podium-sub">영사기 라이트와 3D 포디움으로 보는 실시간 박스오피스</div>
     </div>
 """, unsafe_allow_html=True)
 
@@ -394,7 +430,7 @@ else:
         "🔍 상세 검색"
     ])
 
-    # TAB 1: 3D 입체 포디움 (2nd - 1st - 3rd 순서 배치)
+    # TAB 1: 3D 입체 포디움 + 1번(빔/글로우) + 3번(플로팅 애니메이션)
     with tab1:
         st.markdown(f"##### 📢 **{display_dt_str}** 박스오피스 TOP 3 영예의 순간")
         st.write("")
@@ -406,10 +442,11 @@ else:
 
             col_p2, col_p1, col_p3 = st.columns([1, 1.15, 1])
 
-            # 🥈 2위 포디움 (왼쪽)
+            # 🥈 2위 포디움 (🍿 팝콘 플로팅 아이콘)
             with col_p2:
                 st.markdown(f"""
                     <div class="podium-card podium-2nd">
+                        <div class="floating-icon">🍿</div>
                         <span class="rank-tag">2ND PLACE</span>
                         <div class="movie-title">{m2['movieNm']}</div>
                         <div class="movie-meta">개봉일 {m2['openDt']} | {m2['순위변동']}</div>
@@ -427,12 +464,13 @@ else:
                 if st.button(f"🎟️ 2위 상세 정보", key="pod_btn_2"):
                     show_movie_dialog(m2["movieNm"])
 
-            # 🥇 1위 포디움 (가운데 - 가장 우뚝 솟음)
+            # 🥇 1위 포디움 (👑 왕관 플로팅 + ✨ 영사기 라이트 빔 + 황금 네온 글로우)
             with col_p1:
                 st.markdown(f"""
                     <div class="podium-card podium-1st">
-                        <div class="rank-crown">👑</div>
-                        <span class="rank-tag">1ST WINNER</span>
+                        <div class="floating-icon" style="font-size: 2.6rem;">👑</div>
+                        <br>
+                        <span class="rank-tag" style="background-color:#f59e0b; color:#fff;">1ST WINNER</span>
                         <div class="movie-title" style="font-size: 1.55rem; color:#b45309;">{m1['movieNm']}</div>
                         <div class="movie-meta">개봉일 {m1['openDt']} | {m1['순위변동']}</div>
                         <div class="data-pill" style="background-color: #fef3c7;">
@@ -449,10 +487,11 @@ else:
                 if st.button(f"🥇 1위 상세 정보", key="pod_btn_1"):
                     show_movie_dialog(m1["movieNm"])
 
-            # 🥉 3위 포디움 (오른쪽)
+            # 🥉 3위 포디움 (🎬 슬레이트 플로팅 아이콘)
             with col_p3:
                 st.markdown(f"""
                     <div class="podium-card podium-3rd">
+                        <div class="floating-icon">🎬</div>
                         <span class="rank-tag">3RD PLACE</span>
                         <div class="movie-title">{m3['movieNm']}</div>
                         <div class="movie-meta">개봉일 {m3['openDt']} | {m3['순위변동']}</div>
