@@ -6,128 +6,166 @@ import streamlit as st
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="NETFLIX LIGHT - 박스오피스",
-    page_icon="🍿",
+    page_title="모바일 티켓 박스오피스",
+    page_icon="🎟️",
     layout="wide"
 )
 
 # -------------------------------------------------------------
-# 🎨 넷플릭스 스타일 라이트 모드 (화이트 배경 + 넷플릭스 레드)
+# 🎨 2번 구현: 화이트 배경 + 실물 모바일 티켓(Ticket) UI/UX CSS
 # -------------------------------------------------------------
 st.markdown("""
     <style>
-    /* 전체 메인 배경: 눈이 편안한 밝은 화이트/일렉트릭 백그라운드 */
+    /* 전체 메인 배경: 눈이 편안한 소프트 화이트 */
     .stApp {
-        background-color: #ffffff;
-        color: #141414;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        background-color: #f8fafc;
+        color: #0f172a;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* 넷플릭스 헤더 바 */
-    .netflix-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 0 20px 0;
-        border-bottom: 2px solid #f2f2f2;
-        margin-bottom: 25px;
+    /* 상단 타이틀 바 */
+    .ticket-header {
+        text-align: center;
+        padding: 10px 0 25px 0;
+        border-bottom: 2px dashed #cbd5e1;
+        margin-bottom: 30px;
     }
-    .netflix-logo {
-        color: #E50914;
-        font-size: 2.3rem;
+    .ticket-header-title {
+        color: #0f172a;
+        font-size: 2.2rem;
         font-weight: 900;
-        letter-spacing: -1.5px;
+        letter-spacing: -1px;
         margin: 0;
     }
-    .netflix-badge {
-        background-color: #E50914;
-        color: #ffffff;
-        padding: 4px 12px;
-        font-size: 0.85rem;
-        font-weight: 700;
-        border-radius: 4px;
-        text-transform: uppercase;
-    }
-
-    /* 넷플릭스 스타일 메인 히어로 배너 (화이트 모드 전용) */
-    .hero-container {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border: 1px solid #e0e0e0;
-        border-radius: 12px;
-        padding: 30px;
-        margin-bottom: 30px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-    }
-    .hero-title-badge {
-        color: #E50914;
-        font-weight: 800;
-        font-size: 0.9rem;
-        letter-spacing: 1px;
-        margin-bottom: 5px;
-    }
-    .hero-title {
-        color: #111111;
-        font-size: 2.2rem;
-        font-weight: 800;
-        margin-bottom: 10px;
-    }
-    .hero-sub {
-        color: #666666;
+    .ticket-header-sub {
+        color: #64748b;
         font-size: 0.95rem;
+        margin-top: 6px;
+    }
+
+    /* 🎟️ 실물 티켓 카드 스타일 디자인 */
+    .ticket-box {
+        position: relative;
+        background: #ffffff;
+        border: 2px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 24px;
         margin-bottom: 20px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+        overflow: hidden;
+    }
+    
+    /* 마우스 호버 시 티켓이 살짝 들리는 인터랙션 */
+    .ticket-box:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+        border-color: #e50914;
     }
 
-    /* 지표 카드 (메트릭) */
-    .net-card {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-left: 5px solid #E50914;
-        border-radius: 8px;
-        padding: 16px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        text-align: left;
+    /* 티켓 좌우 절취 홈 (펀칭 홀) 효과 */
+    .ticket-box::before, .ticket-box::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        width: 20px;
+        height: 20px;
+        background-color: #f8fafc; /* 배경색과 동일하게 맞춰 홈처럼 보임 */
+        border: 2px solid #e2e8f0;
+        border-radius: 50%;
+        transform: translateY(-50%);
     }
-    .net-card-label {
-        color: #718096;
-        font-size: 0.85rem;
-        font-weight: 600;
-    }
-    .net-card-value {
-        color: #1a202c;
-        font-size: 1.6rem;
+    .ticket-box::before { left: -12px; }
+    .ticket-box::after { right: -12px; }
+
+    /* 티켓 순위 뱃지 */
+    .ticket-rank-badge {
+        display: inline-block;
+        background-color: #0f172a;
+        color: #ffffff;
         font-weight: 800;
-        margin-top: 4px;
+        font-size: 0.85rem;
+        padding: 4px 12px;
+        border-radius: 20px;
+        margin-bottom: 12px;
+    }
+    .ticket-rank-badge.top1 {
+        background-color: #e50914; /* 1위는 넷플릭스 레드 로 포인트 */
     }
 
-    /* 탭 메뉴 (넷플릭스 레드 포인트) */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
+    /* 티켓 내부 텍스트 스타일 */
+    .ticket-movie-title {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 6px;
+    }
+    .ticket-meta {
+        color: #64748b;
+        font-size: 0.88rem;
+        margin-bottom: 16px;
+    }
+
+    /* 티켓 지표(수치) 영역 */
+    .ticket-data-grid {
+        display: flex;
+        gap: 15px;
         background-color: #f1f5f9;
+        padding: 12px 16px;
+        border-radius: 10px;
+        border-left: 4px solid #e50914;
+    }
+    .ticket-data-item {
+        flex: 1;
+    }
+    .ticket-data-label {
+        font-size: 0.75rem;
+        color: #64748b;
+        font-weight: 700;
+    }
+    .ticket-data-value {
+        font-size: 1.1rem;
+        color: #0f172a;
+        font-weight: 800;
+    }
+
+    /* 티켓 하단 바코드 연출 디자인 */
+    .ticket-stub-barcode {
+        margin-top: 18px;
+        padding-top: 12px;
+        border-top: 2px dashed #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: #94a3b8;
+        font-family: monospace;
+        font-size: 0.8rem;
+        letter-spacing: 2px;
+    }
+
+    /* 탭 메뉴 스타일 정돈 */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #e2e8f0;
         padding: 6px;
-        border-radius: 8px;
+        border-radius: 10px;
     }
     .stTabs [data-baseweb="tab"] {
         color: #475569 !important;
         font-weight: 700;
-        border-radius: 6px;
-        padding: 8px 20px;
+        border-radius: 8px;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #E50914 !important;
-        color: #ffffff !important;
-    }
-
-    /* 테이블 스타일 모던화 */
-    .stDataFrame {
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
+        background-color: #ffffff !important;
+        color: #e50914 !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
     }
     </style>
 """, unsafe_allow_html=True)
 
 
 # -------------------------------------------------------------
-# 1. KOBIS API 박스오피스 데이터 가져오기
+# 1. KOBIS API 데이터 불러오기 (캐싱)
 # -------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_box_office_data(api_key, target_date):
@@ -158,7 +196,7 @@ def fetch_box_office_data(api_key, target_date):
 
 
 # -------------------------------------------------------------
-# 2. TMDB Open API 영화 상세 정보 가져오기
+# 2. TMDB API 영화 상세 정보 불러오기
 # -------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_movie_detail(movie_name):
@@ -212,9 +250,9 @@ def fetch_movie_detail(movie_name):
 
 
 # -------------------------------------------------------------
-# 3. 영화 상세 정보 다이얼로그 (모달)
+# 3. 영화 상세 정보 모달
 # -------------------------------------------------------------
-@st.dialog("🎬 영화 상세 정보")
+@st.dialog("🎬 모바일 티켓 상세보기")
 def show_movie_dialog(movie_name):
     st.markdown(f"### **{movie_name}**")
     
@@ -238,16 +276,16 @@ def show_movie_dialog(movie_name):
 
 
 # -------------------------------------------------------------
-# 헤더 영역
+# 헤더 레이아웃
 # -------------------------------------------------------------
 st.markdown("""
-    <div class="netflix-header">
-        <h1 class="netflix-logo">NETFLIX <span style="font-size:1.2rem; font-weight:400; color:#333;">BOXOFFICE</span></h1>
-        <span class="netflix-badge">TOP 10 TODAY</span>
+    <div class="ticket-header">
+        <h1 class="ticket-header-title">🎟️ DAILY MOVIE TICKET</h1>
+        <div class="ticket-header-sub">실물 모바일 티켓 형태로 확인하는 실시간 일별 박스오피스</div>
     </div>
 """, unsafe_allow_html=True)
 
-# Secrets 인증키 확인
+# Secrets 키 확인
 if "KOBIS_KEY" not in st.secrets:
     st.error("⚠️ 인증키가 설정되지 않았습니다. Streamlit Secrets에 `KOBIS_KEY`를 등록해 주세요.")
     st.stop()
@@ -271,7 +309,7 @@ with col_date:
 target_dt_str = selected_date.strftime("%Y%m%d")
 display_dt_str = selected_date.strftime("%Y년 %m월 %d일")
 
-# 데이터 호출
+# 데이터 불러오기
 movie_list, error_msg = fetch_box_office_data(api_key, target_dt_str)
 
 if error_msg == "EMPTY_LIST":
@@ -300,63 +338,81 @@ else:
     df["순위변동"] = df["rankInten"].apply(format_rank_change)
 
     # -------------------------------------------------------------
-    # 탭 구성 (라이트 넷플릭스)
+    # 탭 구성
     # -------------------------------------------------------------
     tab1, tab2, tab3, tab4 = st.tabs([
-        "🔥 오늘 일등 추천", 
-        "📈 관객수 랭킹 차트", 
-        "📋 전체 랭킹 리스트", 
+        "🎟️ 모바일 티켓 랭킹", 
+        "📊 관객수 TOP 5 차트", 
+        "📋 전체 순위표", 
         "🔍 상세 검색"
     ])
 
-    # TAB 1: 넷플릭스 메인 히어로 스타일 (1위 영화)
+    # TAB 1: 실물 모바일 티켓 형태 카드 리스트
     with tab1:
-        top_1 = df.iloc[0]
-        
-        st.markdown(f"""
-            <div class="hero-container">
-                <div class="hero-title-badge">#1 TODAY'S FEATURED</div>
-                <div class="hero-title">{top_1['movieNm']}</div>
-                <div class="hero-sub">개봉일: {top_1['openDt']} &nbsp;|&nbsp; 순위 변동: {top_1['순위변동']}</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown(f"""
-                <div class="net-card">
-                    <div class="net-card-label">일일 관객수</div>
-                    <div class="net-card-value">{top_1['audiCnt']:,} 명</div>
-                </div>
-            """, unsafe_allow_html=True)
-        with c2:
-            st.markdown(f"""
-                <div class="net-card">
-                    <div class="net-card-label">누적 관객수</div>
-                    <div class="net-card-value">{top_1['audiAcc']:,} 명</div>
-                </div>
-            """, unsafe_allow_html=True)
-        with c3:
-            st.markdown(f"""
-                <div class="net-card">
-                    <div class="net-card-label">스크린수</div>
-                    <div class="net-card-value">{top_1['scrnCnt']:,} 개</div>
-                </div>
-            """, unsafe_allow_html=True)
-
+        st.markdown(f"##### 📢 **{display_dt_str}** 관객 발권 현황")
         st.write("")
-        if st.button(f"▶ '{top_1['movieNm']}' 상세 정보 열기", key="hero_btn"):
-            show_movie_dialog(top_1["movieNm"])
+
+        # TOP 3 영화를 3열의 티켓 카드로 배치
+        top3_cols = st.columns(3)
+        for i in range(min(3, len(df))):
+            item = df.iloc[i]
+            rank_badge_class = "top1" if item['rank'] == 1 else ""
+            
+            with top3_cols[i]:
+                st.markdown(f"""
+                    <div class="ticket-box">
+                        <span class="ticket-rank-badge {rank_badge_class}">NO. {item['rank']} TICKET</span>
+                        <div class="ticket-movie-title">{item['movieNm']}</div>
+                        <div class="ticket-meta">개봉일: {item['openDt']} | 변동: {item['순위변동']}</div>
+                        <div class="ticket-data-grid">
+                            <div class="ticket-data-item">
+                                <div class="ticket-data-label">어제 관객</div>
+                                <div class="ticket-data-value">{item['audiCnt']:,}명</div>
+                            </div>
+                            <div class="ticket-data-item">
+                                <div class="ticket-data-label">누적 관객</div>
+                                <div class="ticket-data-value">{item['audiAcc']:,}명</div>
+                            </div>
+                        </div>
+                        <div class="ticket-stub-barcode">
+                            <span>||||||| | |||| | |||||</span>
+                            <span>#2026-BOX-{item['rank']}</span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button(f"🎟️ '{item['movieNm']}' 티켓 정보", key=f"tkt_btn_{i}"):
+                    show_movie_dialog(item["movieNm"])
+
+        st.divider()
+
+        # 4위~10위 영화는 가로 스태킹 티켓 형태로 표시
+        st.markdown("##### 🎟️ NEXT RANKINGS")
+        for i in range(3, min(10, len(df))):
+            item = df.iloc[i]
+            col_tkt, col_act = st.columns([4, 1])
+            with col_tkt:
+                st.markdown(f"""
+                    <div class="ticket-box" style="padding: 16px 24px; margin-bottom: 10px;">
+                        <span class="ticket-rank-badge">NO. {item['rank']}</span>
+                        <strong style="font-size: 1.1rem; margin-left: 10px; color: #0f172a;">{item['movieNm']}</strong>
+                        <span style="color: #64748b; font-size:0.85rem; margin-left: 15px;">개봉: {item['openDt']} | 관객수: <b>{item['audiCnt']:,}명</b> (누적 {item['audiAcc']:,}명)</span>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col_act:
+                st.write("")
+                if st.button(f"상세보기", key=f"tkt_btn_{i}"):
+                    show_movie_dialog(item["movieNm"])
 
     # TAB 2: 차트
     with tab2:
-        st.markdown("<h4 style='color:#111;'>📈 TOP 5 관객수 차트</h4>", unsafe_allow_html=True)
+        st.markdown("#### 📊 TOP 5 관객수 비교")
         top_5_df = df.head(5)
         st.bar_chart(data=top_5_df, x="movieNm", y="audiCnt", use_container_width=True)
 
     # TAB 3: 전체 순위표
     with tab3:
-        st.markdown("<h4 style='color:#111;'>📋 오늘 박스오피스 순위표</h4>", unsafe_allow_html=True)
+        st.markdown("#### 📋 전체 박스오피스 순위표")
         display_df = df[["rank", "순위변동", "movieNm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
         display_df.columns = ["순위", "전날 대비", "영화명", "개봉일", "관객수", "누적관객", "스크린수"]
 
@@ -372,9 +428,9 @@ else:
 
     # TAB 4: 상세 검색
     with tab4:
-        st.markdown("<h4 style='color:#111;'>🔍 영화 줄거리 검색</h4>", unsafe_allow_html=True)
+        st.markdown("#### 🔍 영화 선택 상세 검색")
         selected_movie = st.selectbox(
-            "목록에서 영화를 선택하세요:",
+            "줄거리 및 상세 정보를 확인할 영화를 고르세요:",
             options=df["movieNm"].tolist()
         )
         if st.button("🎬 선택한 영화 상세보기"):
