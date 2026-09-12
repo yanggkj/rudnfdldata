@@ -45,30 +45,29 @@ movie_df = df[df['영화명'] == selected_movie].sort_values('날짜')
 
 if not movie_df.empty:
     # Plotly 선 그래프 생성
-    fig = px.line(
+    fig1 = px.line(
         movie_df,
         x='날짜',
         y='일관객',
         title=f"[{selected_movie}] 날짜별 일관객수 변화",
         labels={'날짜': '날짜', '일관객': '일일 관객수(명)'},
-        markers=True,
-        hover_data={'날짜': '|%Y-%m-%d', '일관객': ':,d'}
+        markers=True
     )
     
     # 툴팁 및 레이아웃 디테일 설정
-    fig.update_traces(
+    fig1.update_traces(
         hovertemplate="<b>날짜:</b> %{x|%Y-%m-%d}<br><b>관객수:</b> %{y:,}명<extra></extra>"
     )
-    fig.update_layout(
+    fig1.update_layout(
         xaxis_title="날짜",
         yaxis_title="일일 관객수",
         hovermode="x unified"
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig1, use_container_width=True)
 
     # 그래프 설명 문구 자리
-    st.info("💡 **이 그래프로 알 수 있는 것:** 영화의 상영 기간에 따른 흥행 관객수 추이와 피크(peak) 시점을 파악할 수 있습니다.")
+    st.info("💡 **이 그래프로 알 수 있는 것:** 개별 영화의 상영 기간에 따른 흥행 흐름과 최고 관객수를 기록한 시점을 확인할 수 있습니다.")
 
 else:
     st.warning("선택한 영화의 데이터가 존재하지 않습니다.")
@@ -76,10 +75,58 @@ else:
 st.markdown("---")
 
 # ----------------------------------------------------
-# 구역 2: 추가 그래프 영역 (추후 확장용)
+# 구역 2: 기간 내 관객수 TOP 5 영화 추이 비교
 # ----------------------------------------------------
-st.header("2. [추가 그래프 영역]")
+st.header("2. 기간 내 일관객 합계 TOP 5 영화 추이 비교")
+
+# 일관객 합계 기준 상위 5개 영화 선정
+top5_movies = (
+    df.groupby('영화명')['일관객']
+    .sum()
+    .nlargest(5)
+    .index
+    .tolist()
+)
+
+# 상위 5개 영화 데이터 필터링
+top5_df = df[df['영화명'].isin(top5_movies)].sort_values('날짜')
+
+if not top5_df.empty:
+    # Plotly 다중 선 그래프 생성 (color='영화명'으로 구분)
+    fig2 = px.line(
+        top5_df,
+        x='날짜',
+        y='일관객',
+        color='영화명',
+        title="기간 내 일관객 합계 TOP 5 영화의 일별 관객수 변화 비교",
+        labels={'날짜': '날짜', '일관객': '일일 관객수(명)', '영화명': '영화 제목'}
+    )
+    
+    # 툴팁 및 범례 설정 (범례 클릭 시 켜고 끄기 가능)
+    fig2.update_traces(
+        hovertemplate="<b>%{fullData.name}</b><br>날짜: %{x|%Y-%m-%d}<br>관객수: %{y:,}명<extra></extra>"
+    )
+    fig2.update_layout(
+        xaxis_title="날짜",
+        yaxis_title="일일 관객수",
+        hovermode="x unified",
+        legend_title_text="영화 목록 (클릭하여 켜기/끄기)"
+    )
+
+    st.plotly_chart(fig2, use_container_width=True)
+
+    # 그래프 설명 문구 자리
+    st.info("💡 **이 그래프로 알 수 있는 것:** 해당 기간 최고 흥행작 5편의 흥행 화력과 흥행 기간을 비교해 어떤 영화가 언제 스크린을 주도했는지 파악할 수 있습니다.")
+
+else:
+    st.warning("TOP 5 영화 데이터를 처리할 수 없습니다.")
+
+st.markdown("---")
+
+# ----------------------------------------------------
+# 구역 3: 추가 그래프 영역 (추후 확장용)
+# ----------------------------------------------------
+st.header("3. [추가 그래프 영역]")
 st.caption("다음 시각화 그래프가 들어갈 공간입니다.")
 
-# 예시 설명 자리
 st.info("💡 **이 그래프로 알 수 있는 것:** (추후 추가될 그래프 분석 결과 문구가 들어갈 자리입니다.)")
