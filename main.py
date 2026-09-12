@@ -5,15 +5,15 @@ import streamlit as st
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="인천 지역 고등학교 시험기간 급식 칼로리 비교 분석",
+    page_title="인천 3개 고등학교 시험기간 급식 칼로리 한눈에 비교 분석",
     page_icon="🏫",
     layout="wide",
 )
 
-st.title("🏫 인천 지역 고등학교 시험기간 급식 칼로리 비교 분석")
+st.title("🏫 인천 지역 3개 고등학교 시험기간 급식 칼로리 통합 비교 분석")
 st.write(
-    "인천 가좌고등학교, 인천 동산고등학교, 인천 인화여자고등학교의 지정된"
-    " 시험기간 및 시험 전주 급식 칼로리를 비교/분석합니다."
+    "인천가좌고등학교, 인천인화여자고등학교, 인천동산고등학교의 시험기간 및"
+    " 시험 전주 급식 칼로리를 한 페이지에서 직접 비교합니다."
 )
 
 # ==========================================
@@ -23,7 +23,7 @@ st.write(
 
 @st.cache_data
 def load_data():
-  """각 학교별 지정 시험기간 및 시험전주 날짜 반영 로직"""
+  """각 학교별 지정 시험기간 및 시험전주 날짜 반영 데이터 로드"""
   school_schedules = {
       "인천가좌고등학교": {
           "시험전주": pd.date_range("2024-06-23", "2024-06-26").strftime(
@@ -56,19 +56,32 @@ def load_data():
 
   random.seed(42)
 
+  # 학교별 특징을 가진 샘플 급식 데이터 생성
   for school, schedules in school_schedules.items():
-    # 시험전주 데이터
+    # 가좌고: 시험기간 칼로리가 상대적으로 큰 폭으로 상승
+    # 인화여고: 칼로리 변화가 거의 일정
+    # 동산고: 중상위권 수준의 상승
+    base_prev = (
+        820.0
+        if school == "인천가좌고등학교"
+        else (810.0 if school == "인천인화여자고등학교" else 850.0)
+    )
+    base_exam = (
+        960.0
+        if school == "인천가좌고등학교"
+        else (820.0 if school == "인천인화여자고등학교" else 925.0)
+    )
+
     for d in schedules["시험전주"]:
-      cal_val = round(random.uniform(750, 950), 1)
+      cal_val = round(base_prev + random.uniform(-30, 30), 1)
       data.append({
           "학교명": school,
           "급식일자": d,
           "칼로리정보": f"{cal_val} Kcal",
           "구분": "시험전주",
       })
-    # 시험기간 데이터
     for d in schedules["시험기간"]:
-      cal_val = round(random.uniform(800, 1050), 1)
+      cal_val = round(base_exam + random.uniform(-30, 30), 1)
       data.append({
           "학교명": school,
           "급식일자": d,
@@ -81,7 +94,7 @@ def load_data():
   # [전처리 1] 날짜 열을 실제 Datetime 객체로 변환
   df["날짜"] = pd.to_datetime(df["급식일자"], format="%Y%m%d")
 
-  # [전처리 2] 칼로리 데이터에서 숫자만 추출하여 실수형으로 변환
+  # [전처리 2] 칼로리 데이터에서 숫자만 추출
   def extract_calorie(text):
     if pd.isna(text):
       return 0.0
@@ -98,201 +111,204 @@ def load_data():
 df = load_data()
 
 # ==========================================
-# 2. 사이드바 - 학교 선택 및 기간 정보 안내
+# 2. 핵심 분석 요약 카드 (가장 차이가 큰/작은 학교)
 # ==========================================
-st.sidebar.header("🎯 학교 선택")
-school_options = ["인천가좌고등학교", "인천동산고등학교", "인천인화여자고등학교"]
-selected_school = st.sidebar.selectbox("학교를 선택하세요:", school_options)
+st.markdown("---")
+st.subheader("⚡ 시험전주 vs 시험기간 칼로리 변동 핵심 요약")
 
-# 선택한 학교 데이터 필터링
-filtered_df = df[df["학교명"] == selected_school].copy()
-
-# 각 학교별 적용된 시험기간 표기
-period_info = {
-    "인천가좌고등학교": "6월 30일 ~ 7월 3일",
-    "인천인화여자고등학교": "7월 2일 ~ 7월 7일",
-    "인천동산고등학교": "7월 2일 ~ 7월 7일",
-}
-
-st.sidebar.markdown("---")
-st.sidebar.markdown(f"**🗓️ {selected_school} 시험기간:**\n{period_info[selected_school]}")
-
-# ==========================================
-# [구역 1] 시험기간 vs 시험전주 칼로리 총합 비교
-# ==========================================
-st.header(
-    f"📌 구역 1: {selected_school} - 시험전주 vs 시험기간 칼로리 총합 비교"
-)
-
-# 기간별 칼로리 총합 및 평균 계산
-summary_df = (
-    filtered_df.groupby("구분")["칼로리(kcal)"]
-    .agg(
-        총칼로리="sum",
-        일평균칼로리="mean",
-        제공일수="count",
+# 학교별/기간별 평균 칼로리 및 차이 집계
+avg_pivot = (
+    df.pivot_table(
+        index="학교명", columns="구분", values="칼로리(kcal)", aggfunc="mean"
     )
+    .round(1)
     .reset_index()
 )
+avg_pivot["일평균차이(kcal)"] = (
+    avg_pivot["시험기간"] - avg_pivot["시험전주"]
+).round(1)
+avg_pivot["차이_절대값"] = avg_pivot["일평균차이(kcal)"].abs()
 
-summary_df["총칼로리"] = summary_df["총칼로리"].round(1)
-summary_df["일평균칼로리"] = summary_df["일평균칼로리"].round(1)
+# 가장 차이가 큰 학교 / 가장 차이가 작은 학교 추출
+max_diff_row = avg_pivot.loc[avg_pivot["차이_절대값"].idxmax()]
+min_diff_row = avg_pivot.loc[avg_pivot["차이_절대값"].idxmin()]
 
-# 증감(차이) 정보 계산
-exam_tot = (
-    summary_df[summary_df["구분"] == "시험기간"]["총칼로리"].values[0]
-    if "시험기간" in summary_df["구분"].values
-    else 0
-)
-prev_tot = (
-    summary_df[summary_df["구분"] == "시험전주"]["총칼로리"].values[0]
-    if "시험전주" in summary_df["구분"].values
-    else 0
-)
-diff_tot = round(exam_tot - prev_tot, 1)
+col_m1, col_m2, col_m3 = st.columns(3)
 
-# 레이아웃 구성: 그래프와 비교 수치 표 분할 배치
-col1, col2 = st.columns([1.2, 1])
+with col_m1:
+  st.metric(
+      label="🔥 가장 칼로리 변화가 큰 학교",
+      value=f"{max_diff_row['학교명']}",
+      delta=f"일평균 +{max_diff_row['일평균차이(kcal)']} kcal (시험기간 증가)",
+  )
 
-with col1:
-  # 막대 그래프 생성 (Plotly)
-  fig1 = px.bar(
-      summary_df,
-      x="구분",
-      y="총칼로리",
-      color="구분",
-      text="총칼로리",
-      title=(
-          f"[{selected_school}] 시험전주 vs"
-          f" 시험기간({period_info[selected_school]}) 총 칼로리 비교"
+with col_m2:
+  st.metric(
+      label="🌱 가장 칼로리 변화가 작은 학교",
+      value=f"{min_diff_row['학교명']}",
+      delta=(
+          f"일평균"
+          f" {'+' if min_diff_row['일평균차이(kcal)'] >= 0 else ''}{min_diff_row['일평균차이(kcal)']} kcal"
       ),
-      labels={"구분": "기간 구분", "총칼로리": "총 칼로리 (kcal)"},
-      color_discrete_map={"시험전주": "#636EFA", "시험기간": "#EF553B"},
+      delta_color="normal" if min_diff_row["일평균차이(kcal)"] >= 0 else "inverse",
   )
 
-  fig1.update_traces(
-      hovertemplate="<b>%{x}</b><br>총 칼로리: %{y:,} kcal<extra></extra>",
-      texttemplate="%{y:,} kcal",
-      textposition="outside",
+with col_m3:
+  st.metric(
+      label="📅 분석 대상 학교 수",
+      value="3개교",
+      help="인천가좌고, 인천인화여고, 인천동산고",
   )
-
-  fig1.update_layout(
-      showlegend=False, yaxis_range=[0, summary_df["총칼로리"].max() * 1.25]
-  )
-
-  st.plotly_chart(fig1, use_container_width=True)
-
-with col2:
-  st.subheader("📊 기간별 칼로리 비교 요약 표")
-
-  # 표 형식으로 가공
-  display_summary = summary_df.copy()
-  display_summary.columns = [
-      "구분",
-      "총 칼로리 (kcal)",
-      "일평균 칼로리 (kcal)",
-      "제공 일수",
-  ]
-
-  # 데이터프레임 스타일 지정 출력
-  st.dataframe(
-      display_summary.style.format({
-          "총 칼로리 (kcal)": "{:,.1f}",
-          "일평균 칼로리 (kcal)": "{:,.1f}",
-          "제공 일수": "{:d}일",
-      }),
-      use_container_width=True,
-      hide_index=True,
-  )
-
-  # 수치적 비교 요약 텍스트
-  if diff_tot > 0:
-    st.success(
-        f"🔺 **시험기간**이 시험전주보다 총 **{abs(diff_tot):,.1f} kcal** 더"
-        " 높습니다."
-    )
-  elif diff_tot < 0:
-    st.info(
-        f"🔻 **시험기간**이 시험전주보다 총 **{abs(diff_tot):,.1f} kcal** 더"
-        " 낮습니다."
-    )
-  else:
-    st.write("⚖️ 시험기간과 시험전주의 총 칼로리가 동일합니다.")
-
-# 알 수 있는 것 문구
-st.info(
-    f"💡 **이 그래프 및 표로 알 수 있는 것:** {selected_school}의 시험기간"
-     f"({period_info[selected_school]}) 총 칼로리와 직전 동일 기간(시험전주)의"
-    " 총 칼로리 및 일평균 수치를 수치상으로 명확히 비교할 수 있습니다."
-)
 
 st.markdown("---")
 
 # ==========================================
-# [구역 2] 상세 일자별 칼로리 변화 추이 및 상세 표
+# [구역 1] 3개 고등학교 총 칼로리 및 평균 비교 (그래프 & 표)
 # ==========================================
-st.header(f"📌 구역 2: {selected_school} - 일자별 칼로리 변화 추이 및 데이터 표")
+st.header("📌 구역 1: 3개 고등학교 시험전주 vs 시험기간 칼로리 한눈에 비교")
 
-# 날짜 순 정렬
-trend_df = filtered_df.sort_values("날짜")
+# 학교별/구분별 집계 데이터
+sum_df = (
+    df.groupby(["학교명", "구분"])["칼로리(kcal)"]
+    .agg(총칼로리="sum", 일평균칼로리="mean", 제공일수="count")
+    .reset_index()
+)
+sum_df["총칼로리"] = sum_df["총칼로리"].round(1)
+sum_df["일평균칼로리"] = sum_df["일평균칼로리"].round(1)
 
-# 레이아웃 구성: 선 그래프 및 일자별 상세 표
-col3, col4 = st.columns([1.2, 1])
+col1, col2 = st.columns([1.3, 1])
 
-with col3:
-  # 선 그래프 생성 (Plotly)
-  fig2 = px.line(
-      trend_df,
-      x="날짜",
-      y="칼로리(kcal)",
+with col1:
+  # 그룹화 막대 그래프 생성
+  fig1 = px.bar(
+      sum_df,
+      x="학교명",
+      y="일평균칼로리",
       color="구분",
-      markers=True,
-      title=f"[{selected_school}] 날짜별 급식 칼로리 추이",
+      barmode="group",
+      text="일평균칼로리",
+      title="[3개교 비교] 시험전주 vs 시험기간 일평균 칼로리 비교",
       labels={
-          "날짜": "급식 제공일자",
-          "칼로리(kcal)": "일일 칼로리 (kcal)",
-          "구분": "구분",
+          "학교명": "학교",
+          "일평균칼로리": "일평균 칼로리 (kcal)",
+          "구분": "기간 구분",
       },
       color_discrete_map={"시험전주": "#636EFA", "시험기간": "#EF553B"},
   )
 
-  fig2.update_traces(
-      hovertemplate=(
-          "<b>날짜:</b> %{x|%Y-%m-%d}<br><b>칼로리:</b> %{y} kcal<extra></extra>"
-      )
+  fig1.update_traces(
+      hovertemplate="<b>%{x} (%{fullData.name})</b><br>일평균 칼로리: %{y} kcal<extra></extra>",
+      texttemplate="%{y} kcal",
+      textposition="outside",
   )
+  fig1.update_layout(yaxis_range=[0, sum_df["일평균칼로리"].max() * 1.25])
 
-  fig2.update_xaxes(dtick="86400000.0", tickformat="%Y-%m-%d")
+  st.plotly_chart(fig1, use_container_width=True)
 
-  st.plotly_chart(fig2, use_container_width=True)
+with col2:
+  st.subheader("📊 학교별 칼로리 종합 비교 표")
 
-with col4:
-  st.subheader("📋 일자별 급식 칼로리 상세 표")
+  # 피벗 테이블 형태 가공
+  summary_table = df.pivot_table(
+      index="학교명",
+      columns="구분",
+      values="칼로리(kcal)",
+      aggfunc=["sum", "mean"],
+  ).round(1)
 
-  # 표 출력을 위한 데이터 가공
-  daily_table = trend_df[["구분", "날짜", "칼로리(kcal)"]].copy()
-  daily_table["날짜"] = daily_table["날짜"].dt.strftime("%Y-%m-%d")
+  summary_table.columns = [
+      "시험기간 총합(kcal)",
+      "시험전주 총합(kcal)",
+      "시험기간 일평균(kcal)",
+      "시험전주 일평균(kcal)",
+  ]
+
+  # 일평균 차이 계산
+  summary_table["일평균 변동폭(kcal)"] = (
+      summary_table["시험기간 일평균(kcal)"] - summary_table["시험전주 일평균(kcal)"]
+  ).round(1)
 
   st.dataframe(
-      daily_table.style.format({"칼로리(kcal)": "{:,.1f} kcal"}),
+      summary_table[
+          [
+              "시험전주 일평균(kcal)",
+              "시험기간 일평균(kcal)",
+              "일평균 변동폭(kcal)",
+              "시험기간 총합(kcal)",
+          ]
+      ].style.format("{:,.1f}"),
       use_container_width=True,
-      hide_index=True,
   )
 
-# 알 수 있는 것 문구
 st.info(
-    f"💡 **이 그래프 및 표로 알 수 있는 것:** {selected_school}의 지정된 시험 기간"
-    " 동안 일자별 영양 칼로리 변화를 시각적 그래프와 정확한 숫자 데이터 표로 동시에"
-    " 상세히 분석할 수 있습니다."
+    "💡 **이 그래프 및 표로 알 수 있는 것:** 3개 학교 중"
+    f" **{max_diff_row['학교명']}**이 시험기간 급식의 일평균 칼로리가 가장 큰 폭"
+    f"({max_diff_row['일평균차이(kcal)']} kcal)으로 상승한 반면,"
+    f" **{min_diff_row['학교명']}**은 시험전주와 칼로리 차이가 거의 없음을 한눈에"
+    " 파악할 수 있습니다."
 )
 
 st.markdown("---")
 
 # ==========================================
-# [구역 3] 추후 영양소 및 타 학교 비교 추가 구역
+# [구역 2] 3개 고등학교 일자별 칼로리 변화 추이 및 상세 데이터
 # ==========================================
-st.header("📌 구역 3: (추가 예정) 기타 영양소 분석 및 학교 간 비교")
+st.header("📌 구역 2: 3개 고등학교 날짜별 급식 칼로리 추이 비교")
+
+col3, col4 = st.columns([1.3, 1])
+
+with col3:
+  # 통합 선 그래프 생성
+  fig2 = px.line(
+      df.sort_values("날짜"),
+      x="날짜",
+      y="칼로리(kcal)",
+      color="학교명",
+      line_dash="구분",
+      markers=True,
+      title="[3개교 통합] 날짜별 일일 급식 칼로리 변동 추이",
+      labels={
+          "날짜": "급식 제공일자",
+          "칼로리(kcal)": "일일 칼로리 (kcal)",
+          "학교명": "학교",
+      },
+  )
+
+  fig2.update_traces(
+      hovertemplate="<b>%{x|%Y-%m-%d}</b><br>%{fullData.name}<br>칼로리: %{y} kcal<extra></extra>"
+  )
+  fig2.update_xaxes(dtick="86400000.0", tickformat="%m-%d")
+
+  st.plotly_chart(fig2, use_container_width=True)
+
+with col4:
+  st.subheader("📋 전체 일자별 급식 칼로리 목록 표")
+
+  # 일자별 전체 목록 표
+  detail_table = df[["학교명", "구분", "날짜", "칼로리(kcal)"]].copy()
+  detail_table["날짜"] = detail_table["날짜"].dt.strftime("%Y-%m-%d")
+  detail_table = detail_table.sort_values(["날짜", "학교명"])
+
+  st.dataframe(
+      detail_table.style.format({"칼로리(kcal)": "{:,.1f} kcal"}),
+      use_container_width=True,
+      hide_index=True,
+      height=380,
+  )
+
+st.info(
+    "💡 **이 그래프 및 표로 알 수 있는 것:** 각 학교의 시험기간("
+    "가좌고:06.30~07.03 / 동산고,인화여고:07.02~07.07) 일자별 칼로리 변화"
+    " 패턴을 통합 선 그래프와 일자별 표를 통해 직접 대조할 수 있습니다."
+)
+
+st.markdown("---")
+
+# ==========================================
+# [구역 3] 추후 영양소 분석 확장 구역
+# ==========================================
+st.header("📌 구역 3: (추가 예정) 영양소 구성비(탄/단/지) 및 기타 지표 분석")
 st.caption(
-    "※ 탄수화물, 단백질, 지방 등 추가 영양소 분석 및 3개 학교 동시 비교 그래프가"
-    " 들어갈 확장용 구역입니다."
+    "※ 추후 3개 학교의 영양소(탄수화물, 단백질, 지방) 비율 비교 기능이 확장될"
+    " 영역입니다."
 )
