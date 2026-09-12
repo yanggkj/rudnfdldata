@@ -145,5 +145,40 @@ try:
         f"가장 관객이 많은 영화는 **'{top_movie_name}'**(총 {top_movie_audi:,}명)입니다."
     )
 
+    stream_lit.markdown("<br><hr><br>", unsafe_allow_html=True)
+
+    # -------------------------------------------------------------
+    # 섹션 4: 개봉일 스크린 수 vs 총 관객 수 (산점도)
+    # -------------------------------------------------------------
+    stream_lit.header("4. 개봉일 스크린 수 vs 총 관객 수 관계 (산점도)")
+    
+    fig4 = px.scatter(
+        df,
+        x='first_scrn',
+        y='total_audi',
+        color='genre',
+        hover_name='movieNm',
+        hover_data={'movieNm': False, 'first_scrn': ':,', 'total_audi': ':,'},
+        labels={
+            'first_scrn': '개봉일 스크린 수',
+            'total_audi': '총 관객 수 (명)',
+            'genre': '장르'
+        },
+        title="개봉일 스크린 수(first_scrn)와 총 관객 수(total_audi) 산점도"
+    )
+    
+    fig4.update_traces(marker=dict(size=9, opacity=0.8))
+    fig4.update_layout(
+        xaxis_title="개봉일 스크린 수 (개)",
+        yaxis_title="총 관객 수 (명)",
+        margin=dict(t=50, b=30, l=10, r=10)
+    )
+    
+    # 그래프 출력
+    stream_lit.plotly_chart(fig4, use_container_width=True)
+    
+    # 그래프 하단 Insight
+    stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 개봉일 스크린 수가 많을수록 대체로 총 관객 수도 증가하는 양의 상관관계를 보이며, 장르별로 초기 스크린 확보 수준과 상응하는 관객 동원력의 차이를 확인할 수 있습니다.")
+
 except Exception as e:
     stream_lit.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
