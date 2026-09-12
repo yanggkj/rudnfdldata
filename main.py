@@ -12,7 +12,8 @@ st.set_page_config(
 
 st.title("🏫 인천 지역 고등학교 시험기간 급식 칼로리 비교 분석")
 st.write(
-    "인천 가좌고등학교, 인천 동산고등학교, 인천 인화여자고등학교의 시험기간 및 시험 전주 급식 칼로리를 비교/분석합니다."
+    "인천 가좌고등학교, 인천 동산고등학교, 인천 인화여자고등학교의 지정된"
+    " 시험기간 및 시험 전주 급식 칼로리를 비교/분석합니다."
 )
 
 # ==========================================
@@ -22,22 +23,48 @@ st.write(
 
 @st.cache_data
 def load_data():
-  """나이스 Open API / CSV 데이터 전처리 및 로드 함수"""
-  # 나이스 오픈포털 또는 수집된 CSV 데이터 링크 사용
-  # 기본 열 구조: 학교명(SCHUL_NM), 급식일자(MLSV_YMD), 칼로리정보(CAL_INFO) 등
+  """각 학교별 지정 시험기간 및 시험전주 날짜 반영 로직"""
+  # 학교별 지정 기간 설정
+  # - 가좌고: 6월 30일 ~ 7월 3일
+  # - 인화여고: 7월 2일 ~ 7월 7일
+  # - 동산고: 7월 2일 ~ 7월 7일
 
-  # [샘플 데이터 구축 - 나이스 데이터 표준 규격 반영]
-  schools = ["인천가좌고등학교", "인천동산고등학교", "인천인화여자고등학교"]
-  dates_prev = ["20240415", "20240416", "20240417", "20240418", "20240419"]  # 시험전주
-  dates_exam = ["20240422", "20240423", "20240424", "20240425", "20240426"]  # 시험기간
+  school_schedules = {
+      "인천가좌고등학교": {
+          "시험전주": pd.date_range("2024-06-23", "2024-06-26").strftime(
+              "%Y%m%d"
+          ),
+          "시험기간": pd.date_range("2024-06-30", "2024-07-03").strftime(
+              "%Y%m%d"
+          ),
+      },
+      "인천인화여자고등학교": {
+          "시험전주": pd.date_range("2024-06-25", "2024-06-30").strftime(
+              "%Y%m%d"
+          ),
+          "시험기간": pd.date_range("2024-07-02", "2024-07-07").strftime(
+              "%Y%m%d"
+          ),
+      },
+      "인천동산고등학교": {
+          "시험전주": pd.date_range("2024-06-25", "2024-06-30").strftime(
+              "%Y%m%d"
+          ),
+          "시험기간": pd.date_range("2024-07-02", "2024-07-07").strftime(
+              "%Y%m%d"
+          ),
+      },
+  }
 
   data = []
   import random
 
   random.seed(42)
 
-  for school in schools:
-    for d in dates_prev:
+  # 지정된 날짜 기준 데이터 구성
+  for school, schedules in school_schedules.items():
+    # 시험전주 데이터
+    for d in schedules["시험전주"]:
       cal_val = round(random.uniform(750, 950), 1)
       data.append({
           "학교명": school,
@@ -45,7 +72,8 @@ def load_data():
           "칼로리정보": f"{cal_val} Kcal",
           "구분": "시험전주",
       })
-    for d in dates_exam:
+    # 시험기간 데이터
+    for d in schedules["시험기간"]:
       cal_val = round(random.uniform(800, 1050), 1)
       data.append({
           "학교명": school,
@@ -59,7 +87,7 @@ def load_data():
   # [전처리 1] 날짜 열을 실제 Datetime 객체로 변환
   df["날짜"] = pd.to_datetime(df["급식일자"], format="%Y%m%d")
 
-  # [전처리 2] 칼로리 데이터에서 숫자만 추출하여 정수/실수형 변환 (예: "852.4 Kcal" -> 852.4)
+  # [전처리 2] 칼로리 데이터에서 숫자만 추출하여 실수형으로 변환
   def extract_calorie(text):
     if pd.isna(text):
       return 0.0
@@ -76,7 +104,7 @@ def load_data():
 df = load_data()
 
 # ==========================================
-# 2. 사이드바 - 학교 선택
+# 2. 사이드바 - 학교 선택 및 기간 정보 안내
 # ==========================================
 st.sidebar.header("🎯 학교 선택")
 school_options = ["인천가좌고등학교", "인천동산고등학교", "인천인화여자고등학교"]
@@ -85,11 +113,15 @@ selected_school = st.sidebar.selectbox("학교를 선택하세요:", school_opti
 # 선택한 학교 데이터 필터링
 filtered_df = df[df["학교명"] == selected_school].copy()
 
+# 각 학교별 적용된 시험기간 표기
+period_info = {
+    "인천가좌고등학교": "6월 30일 ~ 7월 3일",
+    "인천인화여자고등학교": "7월 2일 ~ 7월 7일",
+    "인천동산고등학교": "7월 2일 ~ 7월 7일",
+}
+
 st.sidebar.markdown("---")
-st.sidebar.info(
-    "💡 **안내:** 나이스(NEIS) Open API 급식데이터 연동에 맞추어 전처리 알고리즘이"
-    " 적용되었습니다."
-)
+st.sidebar.markdown(f"**🗓️ {selected_school} 시험기간:**\n{period_info[selected_school]}")
 
 # ==========================================
 # [구역 1] 시험기간 vs 시험전주 칼로리 총합 비교
@@ -109,7 +141,10 @@ fig1 = px.bar(
     y="칼로리(kcal)",
     color="구분",
     text="칼로리(kcal)",
-    title=f"[{selected_school}] 시험전주 vs 시험기간 총 칼로리 비교",
+    title=(
+        f"[{selected_school}] 시험전주 vs 시험기간({period_info[selected_school]})"
+        " 총 칼로리 비교"
+    ),
     labels={"구분": "기간 구분", "칼로리(kcal)": "총 칼로리 (kcal)"},
     color_discrete_map={"시험전주": "#636EFA", "시험기간": "#EF553B"},
 )
@@ -128,9 +163,10 @@ st.plotly_chart(fig1, use_container_width=True)
 
 # 해석 문구
 st.info(
-    f"💡 **이 그래프로 알 수 있는 것:** {selected_school}의 시험기간 일주일 동안 제공된"
-    " 급식 칼로리 총합과 시험 전주 일주일 총합을 비교하여, 시험 기간 특식이나 열량"
-    " 제공 변화 패턴을 한눈에 확인할 수 있습니다."
+    f"💡 **이 그래프로 알 수 있는 것:** {selected_school}의 시험기간("
+    f"{period_info[selected_school]}) 총 칼로리와 직전 동일 기간(시험전주)의"
+    " 총 칼로리를 비교하여 시험기간 급식 제공 열량의 증감 추이를 파악할 수"
+    " 있습니다."
 )
 
 st.markdown("---")
@@ -140,7 +176,7 @@ st.markdown("---")
 # ==========================================
 st.header(f"📌 구역 2: {selected_school} - 일자별 칼로리 변화 추이")
 
-# 날짜 순으로 정렬
+# 날짜 순 정렬
 trend_df = filtered_df.sort_values("날짜")
 
 # 선 그래프 생성 (Plotly)
@@ -171,9 +207,9 @@ st.plotly_chart(fig2, use_container_width=True)
 
 # 해석 문구
 st.info(
-    "💡 **이 그래프로 알 수 있는 것:** 시험전주와 시험기간 동안의 일별 급식 칼로리"
-    " 변동 추이를 확인하여 특정 날짜에 고칼로리 또는 저칼로리 급식이 집중되었는지"
-    " 상세히 분석할 수 있습니다."
+    f"💡 **이 그래프로 알 수 있는 것:** {selected_school}의 지정된 시험 기간 동안"
+    " 일자별로 영양 칼로리가 어떻게 변동했는지 상세한 일일 흐름을 확인할 수"
+    " 있습니다."
 )
 
 st.markdown("---")
