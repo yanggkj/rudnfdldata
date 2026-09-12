@@ -200,7 +200,6 @@ top10_summary = (
     )
     .reset_index()
     .nlargest(10, '총관객수')
-    # Plotly 가로 막대는 아래서부터 위로 그려지므로 관객수 오름차순으로 정렬해야 큰 값이 위에 옵니다.
     .sort_values('총관객수', ascending=True)
 )
 
@@ -239,9 +238,76 @@ else:
 st.markdown("---")
 
 # ----------------------------------------------------
-# 구역 5: 추가 그래프 영역 (추후 확장용)
+# 구역 5: 월 × 요일별 일관객 합계 히트맵
 # ----------------------------------------------------
-st.header("5. [추가 그래프 영역]")
+st.header("5. 월 × 요일별 관객수 분포 (히트맵)")
+
+# 데이터 전처리: 월 및 요일 파출
+heatmap_df = df.copy()
+heatmap_df['월'] = heatmap_df['날짜'].dt.strftime('%m월')
+heatmap_df['요일'] = heatmap_df['날짜'].dt.day_name()
+
+# 요일 한글 변환 및 월요일~일요일 순서 정의
+weekday_map = {
+    'Monday': '월요일',
+    'Tuesday': '화요일',
+    'Wednesday': '수요일',
+    'Thursday': '목요일',
+    'Friday': '금요일',
+    'Saturday': '토요일',
+    'Sunday': '일요일'
+}
+weekday_order = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
+
+heatmap_df['요일'] = heatmap_df['요일'].map(weekday_map)
+
+# 월×요일 관객수 합계 피벗 테이블 생성
+pivot_df = heatmap_df.pivot_table(
+    index='월',
+    columns='요일',
+    values='일관객',
+    aggfunc='sum'
+).fillna(0)
+
+# 월 순서 오름차순 정렬 & 요일 순서 지정(월요일 -> 일요일)
+pivot_df = pivot_df.reindex(columns=weekday_order)
+
+if not pivot_df.empty:
+    # Plotly 히트맵 생성 (색이 진할수록 관객수 증가 -> Viridis 또는 Redor/Reds 계열 적용)
+    fig5 = px.imshow(
+        pivot_df,
+        labels=dict(x="요일", y="월", color="총 관객수(명)"),
+        x=pivot_df.columns,
+        y=pivot_df.index,
+        color_continuous_scale="Reds",
+        title="월 및 요일 조합별 총 관객수 분포 히트맵",
+        aspect="auto"
+    )
+    
+    # 툴팁 및 레이아웃 디테일 설정
+    fig5.update_traces(
+        hovertemplate="<b>%{y} %{x}</b><br>총 관객수: %{z:,}명<extra></extra>"
+    )
+    fig5.update_layout(
+        xaxis_title="요일",
+        yaxis_title="월",
+        xaxis=dict(tickangle=0)
+    )
+
+    st.plotly_chart(fig5, use_container_width=True)
+
+    # 그래프 설명 문구 자리
+    st.info("💡 **이 그래프로 알 수 있는 것:** 계절성/월별 특성과 요일(주말 vs 평일)의 조합에 따라 극장 관객이 가장 집중되는 골든 타임 슬롯을 한눈에 식별할 수 있습니다.")
+
+else:
+    st.warning("월×요일 피벗 데이터를 처리할 수 없습니다.")
+
+st.markdown("---")
+
+# ----------------------------------------------------
+# 구역 6: 추가 그래프 영역 (추후 확장용)
+# ----------------------------------------------------
+st.header("6. [추가 그래프 영역]")
 st.caption("다음 시각화 그래프가 들어갈 공간입니다.")
 
 st.info("💡 **이 그래프로 알 수 있는 것:** (추후 추가될 그래프 분석 결과 문구가 들어갈 자리입니다.)")
