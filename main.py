@@ -219,5 +219,43 @@ try:
     # 그래프 하단 Insight
     stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 영화가 10편 이상인 주요 장르 간 관객 수 중앙값과 변동성(분포 범위)을 한눈에 비교할 수 있으며, 이상치(Outlier) 점에 마우스를 올려 대흥행에 성공한 영화명을 직접 확인할 수 있습니다.")
 
+    stream_lit.markdown("<br><hr><br>", unsafe_allow_html=True)
+
+    # -------------------------------------------------------------
+    # 섹션 6: 스크린 수 vs 총 관객 수 (첫 주 관객 수 반영 버블 차트)
+    # -------------------------------------------------------------
+    stream_lit.header("6. 스크린 수 vs 총 관객 수 (첫 주 관객 수 반영 버블 차트)")
+    
+    fig6 = px.scatter(
+        df,
+        x='first_scrn',
+        y='total_audi',
+        size='first_week_audi',
+        color='genre',
+        hover_name='movieNm',
+        hover_data={'movieNm': False, 'first_scrn': ':,', 'total_audi': ':,', 'first_week_audi': ':,'},
+        size_max=40,
+        labels={
+            'first_scrn': '개봉일 스크린 수',
+            'total_audi': '총 관객 수 (명)',
+            'first_week_audi': '첫 주 관객 수 (명)',
+            'genre': '장르'
+        },
+        title="스크린 수, 총 관객 수 및 첫 주 관객 수(버블 크기) 관계"
+    )
+    
+    fig6.update_traces(marker=dict(opacity=0.7))
+    fig6.update_layout(
+        xaxis_title="개봉일 스크린 수 (개)",
+        yaxis_title="총 관객 수 (명)",
+        margin=dict(t=50, b=30, l=10, r=10)
+    )
+    
+    # 그래프 출력
+    stream_lit.plotly_chart(fig6, use_container_width=True)
+    
+    # 그래프 하단 Insight
+    stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 개봉일 스크린 수와 총 관객 수의 관계에 더해, 버블 크기(첫 주 관객 수)를 통해 초반 흥행 폭발력(입소문 이전 첫 주 성적)이 최종 흥행 규모에 미친 영향을 입체적으로 비교 분석할 수 있습니다.")
+
 except Exception as e:
     stream_lit.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
