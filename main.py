@@ -27,6 +27,10 @@ def load_data():
             
         df['genre'] = df['genre'].apply(extract_first_genre)
         
+    # 제작 국가: 결측치 예방
+    if 'nation' in df.columns:
+        df['nation'] = df['nation'].fillna('기타')
+        
     return df
 
 try:
@@ -256,6 +260,36 @@ try:
     
     # 그래프 하단 Insight
     stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 개봉일 스크린 수와 총 관객 수의 관계에 더해, 버블 크기(첫 주 관객 수)를 통해 초반 흥행 폭발력(입소문 이전 첫 주 성적)이 최종 흥행 규모에 미친 영향을 입체적으로 비교 분석할 수 있습니다.")
+
+    stream_lit.markdown("<br><hr><br>", unsafe_allow_html=True)
+
+    # -------------------------------------------------------------
+    # 섹션 7: 제작 국가별 장르 구성 (선버스트 차트)
+    # -------------------------------------------------------------
+    stream_lit.header("7. 제작 국가 및 장르별 영화 편수 분포 (선버스트 차트)")
+    
+    # 제작 국가(nation) -> 장르(genre) 계층 구조 선버스트 생성
+    fig7 = px.sunburst(
+        df,
+        path=['nation', 'genre'],
+        title="제작 국가(nation) 및 장르(genre)별 영화 편수 선버스트 차트",
+        color='nation',
+        color_discrete_sequence=px.colors.qualitative.Pastel
+    )
+    
+    fig7.update_traces(
+        hovertemplate='<b>%{label}</b><br>영화 편수: %{value}편<br>비율: %{percentParent:.1%}'
+    )
+    
+    fig7.update_layout(
+        margin=dict(t=50, b=30, l=10, r=10)
+    )
+    
+    # 그래프 출력
+    stream_lit.plotly_chart(fig7, use_container_width=True)
+    
+    # 그래프 하단 Insight
+    stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 제작 국가(nation)별 전체 영화 편수 비중과 함께, 각 국가 내에서 어떤 장르의 영화가 주로 제작·배급되었는지 계층적으로 한눈에 비교할 수 있습니다.")
 
 except Exception as e:
     stream_lit.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
