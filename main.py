@@ -1,4 +1,4 @@
-import streamlit as stream_lit
+import Streamlit as stream_lit
 import pandas as pd
 import plotly.express as px
 
@@ -18,16 +18,21 @@ def load_data():
     url = "https://raw.githubusercontent.com/greatsong/modudata/main/data/kobis_movies.csv"
     df = pd.read_csv(url)
     
-    # 장르: 세로막대 기호(|)로 여러 개 적힌 영화는 첫 번째 장르만 extraction
+    # 장르: 결측치(NaN/float) 예방 및 세로막대 기호(|)로 여러 개 적힌 영화는 첫 번째 장르만 추출
     if 'genre' in df.columns:
-        df['genre'] = df['genre'].astype(str).apply(lambda x: x.split('|')[0].strip() if x != 'nan' else '기타')
+        def extract_first_genre(val):
+            if pd.isna(val):
+                return '기타'
+            return str(val).split('|')[0].strip()
+            
+        df['genre'] = df['genre'].apply(extract_first_genre)
         
     return df
 
 try:
     df = load_data()
     
-    # Sidebar: 데이터 요약 및 모니터링
+    # Sidebar: 데이터 요약 및 사이드바 옵션
     stream_lit.sidebar.header("📊 데이터 요약")
     stream_lit.sidebar.metric(label="총 수집 영화 수", value=f"{len(df)} 편")
     stream_lit.sidebar.markdown("---")
@@ -70,7 +75,7 @@ try:
     # 그래프 출력
     stream_lit.plotly_chart(fig, use_container_width=True)
     
-    # 그래프 하단 Insight
+    # 그래프 하단 Insight 및 구역 구분을 위한 설정
     stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 박스오피스 상위권 영화 중 특정 주요 장르가 대부분의 비중을 차지하고 있음을 알 수 있습니다.")
     
     stream_lit.markdown("<br><hr><br>", unsafe_allow_html=True)
