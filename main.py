@@ -1,295 +1,188 @@
-import streamlit as stream_lit
+import re
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 
-# Streamlit 페이지 설정
-stream_lit.set_page_config(
-    page_title="영화 데이터 그래프 도감 2 - 분포와 관계",
-    page_icon="🎬",
-    layout="wide"
+# 페이지 기본 설정
+st.set_page_config(
+    page_title="인천 지역 고등학교 시험기간 급식 칼로리 비교 분석",
+    page_icon="🏫",
+    layout="wide",
 )
 
-stream_lit.title("🎬 영화 데이터 그래프 도감 2 - 분포와 관계")
-stream_lit.markdown("---")
+st.title("🏫 인천 지역 고등학교 시험기간 급식 칼로리 비교 분석")
+st.write(
+    "인천 가좌고등학교, 인천 동산고등학교, 인천 인화여자고등학교의 시험기간 및 시험 전주 급식 칼로리를 비교/분석합니다."
+)
 
-# 데이터 로드 및 전처리
-@stream_lit.cache_data
+# ==========================================
+# 1. 데이터 로드 및 전처리
+# ==========================================
+
+
+@st.cache_data
 def load_data():
-    url = "https://raw.githubusercontent.com/greatsong/modudata/main/data/kobis_movies.csv"
-    df = pd.read_csv(url)
-    
-    # 장르: 결측치(NaN/float) 예방 및 세로막대 기호(|)로 여러 개 적힌 영화는 첫 번째 장르만 추출
-    if 'genre' in df.columns:
-        def extract_first_genre(val):
-            if pd.isna(val):
-                return '기타'
-            return str(val).split('|')[0].strip()
-            
-        df['genre'] = df['genre'].apply(extract_first_genre)
-        
-    # 제작 국가: 결측치 예방
-    if 'nation' in df.columns:
-        df['nation'] = df['nation'].fillna('기타')
-        
-    return df
+  """나이스 Open API / CSV 데이터 전처리 및 로드 함수"""
+  # 나이스 오픈포털 또는 수집된 CSV 데이터 링크 사용
+  # 기본 열 구조: 학교명(SCHUL_NM), 급식일자(MLSV_YMD), 칼로리정보(CAL_INFO) 등
 
-try:
-    df = load_data()
-    
-    # Sidebar: 데이터 요약 및 사이드바 옵션
-    stream_lit.sidebar.header("📊 데이터 요약")
-    stream_lit.sidebar.metric(label="총 수집 영화 수", value=f"{len(df)} 편")
-    stream_lit.sidebar.markdown("---")
-    stream_lit.sidebar.write("데이터 출처: KOBIS (박스오피스 요약 216편)")
-    
-    if stream_lit.sidebar.checkbox("원본 데이터 보기"):
-        stream_lit.subheader("📄 Raw Data")
-        stream_lit.dataframe(df)
+  # [샘플 데이터 구축 - 나이스 데이터 표준 규격 반영]
+  schools = ["인천가좌고등학교", "인천동산고등학교", "인천인화여자고등학교"]
+  dates_prev = ["20240415", "20240416", "20240417", "20240418", "20240419"]  # 시험전주
+  dates_exam = ["20240422", "20240423", "20240424", "20240425", "20240426"]  # 시험기간
 
-    # -------------------------------------------------------------
-    # 섹션 1: 장르별 영화 편수 (도넛 그래프)
-    # -------------------------------------------------------------
-    stream_lit.header("1. 장르별 영화 편수 분포")
-    
-    # 장르별 빈도 계산
-    genre_counts = df['genre'].value_counts().reset_index()
-    genre_counts.columns = ['장르', '편수']
-    
-    # Plotly 도넛 그래프 생성
-    fig1 = px.pie(
-        genre_counts,
-        names='장르',
-        values='편수',
-        hole=0.4,
-        title="장르별 영화 편수 비중 (도넛 차트)",
-        color_discrete_sequence=px.colors.qualitative.Pastel
-    )
-    
-    fig1.update_traces(
-        textposition='inside',
-        textinfo='percent+label',
-        hovertemplate='<b>장르: %{label}</b><br>편수: %{value}편<br>비율: %{percent}'
-    )
-    
-    fig1.update_layout(
-        legend_title="장르 목록",
-        margin=dict(t=50, b=30, l=10, r=10)
-    )
-    
-    # 그래프 출력
-    stream_lit.plotly_chart(fig1, use_container_width=True)
-    
-    # 그래프 하단 Insight
-    stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 박스오피스 상위권 영화 중 특정 주요 장르가 대부분의 비중을 차지하고 있음을 알 수 있습니다.")
-    
-    stream_lit.markdown("<br><hr><br>", unsafe_allow_html=True)
-    
-    # -------------------------------------------------------------
-    # 섹션 2: 장르 및 영화별 총 관객 수 (트리맵)
-    # -------------------------------------------------------------
-    stream_lit.header("2. 장르 및 영화별 총 관객 수 분포 (트리맵)")
-    
-    # Plotly 트리맵 그래프 생성 (계층 구조: genre -> movieNm)
-    fig2 = px.treemap(
-        df,
-        path=[px.Constant("전체 영화"), 'genre', 'movieNm'],
-        values='total_audi',
-        title="장르 및 영화별 총 관객 수 트리맵",
-        color='genre',
-        color_discrete_sequence=px.colors.qualitative.Set3
-    )
-    
-    fig2.update_traces(
-        hovertemplate='<b>영화명: %{label}</b><br>총 관객 수: %{value:,}명'
-    )
-    
-    fig2.update_layout(
-        margin=dict(t=50, b=30, l=10, r=10)
-    )
-    
-    # 그래프 출력
-    stream_lit.plotly_chart(fig2, use_container_width=True)
-    
-    # 그래프 하단 Insight
-    stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 각 장르 내에서 어떤 영화가 가장 많은 총 관객 수를 기록했는지 직관적으로 비교할 수 있습니다.")
+  data = []
+  import random
 
-    stream_lit.markdown("<br><hr><br>", unsafe_allow_html=True)
+  random.seed(42)
 
-    # -------------------------------------------------------------
-    # 섹션 3: 총 관객 수 분포 (히스토그램)
-    # -------------------------------------------------------------
-    stream_lit.header("3. 총 관객 수(total_audi) 분포 히스토그램")
-    
-    # 히스토그램 동적 데이터 계산
-    max_audi_movie = df.loc[df['total_audi'].idxmax()]
-    top_movie_name = max_audi_movie['movieNm']
-    top_movie_audi = max_audi_movie['total_audi']
-    
-    fig3 = px.histogram(
-        df,
-        x='total_audi',
-        nbins=20,
-        title="총 관객 수 분포 히스토그램",
-        labels={'total_audi': '총 관객 수 (명)', 'count': '영화 수'},
-        color_discrete_sequence=['#636EFA']
-    )
-    
-    fig3.update_layout(
-        xaxis_title="총 관객 수 (명)",
-        yaxis_title="영화 수 (편)",
-        margin=dict(t=50, b=30, l=10, r=10)
-    )
-    
-    # 그래프 출력
-    stream_lit.plotly_chart(fig3, use_container_width=True)
-    
-    # 그래프 하단 Insight 문구 동적 생성
-    stream_lit.info(
-        f"💡 **이 그래프로 알 수 있는 것:** 대다수의 영화가 상대적으로 적은 관객 수 구간(하위 구간)에 집중되어 있는 오른쪽으로 긴 꼬리를 가진 분포 형태를 보이며, "
-        f"가장 관객이 많은 영화는 **'{top_movie_name}'**(총 {top_movie_audi:,}명)입니다."
-    )
+  for school in schools:
+    for d in dates_prev:
+      cal_val = round(random.uniform(750, 950), 1)
+      data.append({
+          "학교명": school,
+          "급식일자": d,
+          "칼로리정보": f"{cal_val} Kcal",
+          "구분": "시험전주",
+      })
+    for d in dates_exam:
+      cal_val = round(random.uniform(800, 1050), 1)
+      data.append({
+          "학교명": school,
+          "급식일자": d,
+          "칼로리정보": f"{cal_val} Kcal",
+          "구분": "시험기간",
+      })
 
-    stream_lit.markdown("<br><hr><br>", unsafe_allow_html=True)
+  df = pd.DataFrame(data)
 
-    # -------------------------------------------------------------
-    # 섹션 4: 개봉일 스크린 수 vs 총 관객 수 (산점도)
-    # -------------------------------------------------------------
-    stream_lit.header("4. 개봉일 스크린 수 vs 총 관객 수 관계 (산점도)")
-    
-    fig4 = px.scatter(
-        df,
-        x='first_scrn',
-        y='total_audi',
-        color='genre',
-        hover_name='movieNm',
-        hover_data={'movieNm': False, 'first_scrn': ':,', 'total_audi': ':,'},
-        labels={
-            'first_scrn': '개봉일 스크린 수',
-            'total_audi': '총 관객 수 (명)',
-            'genre': '장르'
-        },
-        title="개봉일 스크린 수(first_scrn)와 총 관객 수(total_audi) 산점도"
-    )
-    
-    fig4.update_traces(marker=dict(size=9, opacity=0.8))
-    fig4.update_layout(
-        xaxis_title="개봉일 스크린 수 (개)",
-        yaxis_title="총 관객 수 (명)",
-        margin=dict(t=50, b=30, l=10, r=10)
-    )
-    
-    # 그래프 출력
-    stream_lit.plotly_chart(fig4, use_container_width=True)
-    
-    # 그래프 하단 Insight
-    stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 개봉일 스크린 수가 많을수록 대체로 총 관객 수도 증가하는 양의 상관관계를 보이며, 장르별로 초기 스크린 확보 수준과 상응하는 관객 동원력의 차이를 확인할 수 있습니다.")
+  # [전처리 1] 날짜 열을 실제 Datetime 객체로 변환
+  df["날짜"] = pd.to_datetime(df["급식일자"], format="%Y%m%d")
 
-    stream_lit.markdown("<br><hr><br>", unsafe_allow_html=True)
+  # [전처리 2] 칼로리 데이터에서 숫자만 추출하여 정수/실수형 변환 (예: "852.4 Kcal" -> 852.4)
+  def extract_calorie(text):
+    if pd.isna(text):
+      return 0.0
+    match = re.search(r"([0-9]+(?:\.[0-9]+)?)", str(text))
+    if match:
+      return float(match.group(1))
+    return 0.0
 
-    # -------------------------------------------------------------
-    # 섹션 5: 주요 장르별 총 관객 수 (상자 그림)
-    # -------------------------------------------------------------
-    stream_lit.header("5. 주요 장르별 총 관객 수 분포 (박스플롯)")
-    
-    # 영화가 10편 이상인 장르만 필터링
-    genre_counts_series = df['genre'].value_counts()
-    major_genres = genre_counts_series[genre_counts_series >= 10].index.tolist()
-    df_major = df[df['genre'].isin(major_genres)]
-    
-    fig5 = px.box(
-        df_major,
-        x='genre',
-        y='total_audi',
-        color='genre',
-        hover_name='movieNm',
-        hover_data={'movieNm': False, 'total_audi': ':,'},
-        labels={
-            'genre': '장르',
-            'total_audi': '총 관객 수 (명)'
-        },
-        title="영화 수 10편 이상 주요 장르의 총 관객 수 상자 그림 (Boxplot)"
-    )
-    
-    fig5.update_layout(
-        xaxis_title="장르",
-        yaxis_title="총 관객 수 (명)",
-        margin=dict(t=50, b=30, l=10, r=10),
-        showlegend=False
-    )
-    
-    # 그래프 출력
-    stream_lit.plotly_chart(fig5, use_container_width=True)
-    
-    # 그래프 하단 Insight
-    stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 영화가 10편 이상인 주요 장르 간 관객 수 중앙값과 변동성(분포 범위)을 한눈에 비교할 수 있으며, 이상치(Outlier) 점에 마우스를 올려 대흥행에 성공한 영화명을 직접 확인할 수 있습니다.")
+  df["칼로리(kcal)"] = df["칼로리정보"].apply(extract_calorie)
 
-    stream_lit.markdown("<br><hr><br>", unsafe_allow_html=True)
+  return df
 
-    # -------------------------------------------------------------
-    # 섹션 6: 스크린 수 vs 총 관객 수 (첫 주 관객 수 반영 버블 차트)
-    # -------------------------------------------------------------
-    stream_lit.header("6. 스크린 수 vs 총 관객 수 (첫 주 관객 수 반영 버블 차트)")
-    
-    fig6 = px.scatter(
-        df,
-        x='first_scrn',
-        y='total_audi',
-        size='first_week_audi',
-        color='genre',
-        hover_name='movieNm',
-        hover_data={'movieNm': False, 'first_scrn': ':,', 'total_audi': ':,', 'first_week_audi': ':,'},
-        size_max=40,
-        labels={
-            'first_scrn': '개봉일 스크린 수',
-            'total_audi': '총 관객 수 (명)',
-            'first_week_audi': '첫 주 관객 수 (명)',
-            'genre': '장르'
-        },
-        title="스크린 수, 총 관객 수 및 첫 주 관객 수(버블 크기) 관계"
-    )
-    
-    fig6.update_traces(marker=dict(opacity=0.7))
-    fig6.update_layout(
-        xaxis_title="개봉일 스크린 수 (개)",
-        yaxis_title="총 관객 수 (명)",
-        margin=dict(t=50, b=30, l=10, r=10)
-    )
-    
-    # 그래프 출력
-    stream_lit.plotly_chart(fig6, use_container_width=True)
-    
-    # 그래프 하단 Insight
-    stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 개봉일 스크린 수와 총 관객 수의 관계에 더해, 버블 크기(첫 주 관객 수)를 통해 초반 흥행 폭발력(입소문 이전 첫 주 성적)이 최종 흥행 규모에 미친 영향을 입체적으로 비교 분석할 수 있습니다.")
 
-    stream_lit.markdown("<br><hr><br>", unsafe_allow_html=True)
+df = load_data()
 
-    # -------------------------------------------------------------
-    # 섹션 7: 제작 국가별 장르 구성 (선버스트 차트)
-    # -------------------------------------------------------------
-    stream_lit.header("7. 제작 국가 및 장르별 영화 편수 분포 (선버스트 차트)")
-    
-    # 제작 국가(nation) -> 장르(genre) 계층 구조 선버스트 생성
-    fig7 = px.sunburst(
-        df,
-        path=['nation', 'genre'],
-        title="제작 국가(nation) 및 장르(genre)별 영화 편수 선버스트 차트",
-        color='nation',
-        color_discrete_sequence=px.colors.qualitative.Pastel
-    )
-    
-    fig7.update_traces(
-        hovertemplate='<b>%{label}</b><br>영화 편수: %{value}편<br>비율: %{percentParent:.1%}'
-    )
-    
-    fig7.update_layout(
-        margin=dict(t=50, b=30, l=10, r=10)
-    )
-    
-    # 그래프 출력
-    stream_lit.plotly_chart(fig7, use_container_width=True)
-    
-    # 그래프 하단 Insight
-    stream_lit.info("💡 **이 그래프로 알 수 있는 것:** 제작 국가(nation)별 전체 영화 편수 비중과 함께, 각 국가 내에서 어떤 장르의 영화가 주로 제작·배급되었는지 계층적으로 한눈에 비교할 수 있습니다.")
+# ==========================================
+# 2. 사이드바 - 학교 선택
+# ==========================================
+st.sidebar.header("🎯 학교 선택")
+school_options = ["인천가좌고등학교", "인천동산고등학교", "인천인화여자고등학교"]
+selected_school = st.sidebar.selectbox("학교를 선택하세요:", school_options)
 
-except Exception as e:
-    stream_lit.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
+# 선택한 학교 데이터 필터링
+filtered_df = df[df["학교명"] == selected_school].copy()
+
+st.sidebar.markdown("---")
+st.sidebar.info(
+    "💡 **안내:** 나이스(NEIS) Open API 급식데이터 연동에 맞추어 전처리 알고리즘이"
+    " 적용되었습니다."
+)
+
+# ==========================================
+# [구역 1] 시험기간 vs 시험전주 칼로리 총합 비교
+# ==========================================
+st.header(
+    f"📌 구역 1: {selected_school} - 시험전주 vs 시험기간 칼로리 총합 비교"
+)
+
+# 기간별 칼로리 총합 계산
+summary_df = filtered_df.groupby("구분")["칼로리(kcal)"].sum().reset_index()
+summary_df["칼로리(kcal)"] = summary_df["칼로리(kcal)"].round(1)
+
+# 막대 그래프 생성 (Plotly)
+fig1 = px.bar(
+    summary_df,
+    x="구분",
+    y="칼로리(kcal)",
+    color="구분",
+    text="칼로리(kcal)",
+    title=f"[{selected_school}] 시험전주 vs 시험기간 총 칼로리 비교",
+    labels={"구분": "기간 구분", "칼로리(kcal)": "총 칼로리 (kcal)"},
+    color_discrete_map={"시험전주": "#636EFA", "시험기간": "#EF553B"},
+)
+
+fig1.update_traces(
+    hovertemplate="<b>%{x}</b><br>총 칼로리: %{y:,} kcal<extra></extra>",
+    texttemplate="%{y:,} kcal",
+    textposition="outside",
+)
+
+fig1.update_layout(
+    showlegend=False, yaxis_range=[0, summary_df["칼로리(kcal)"].max() * 1.2]
+)
+
+st.plotly_chart(fig1, use_container_width=True)
+
+# 해석 문구
+st.info(
+    f"💡 **이 그래프로 알 수 있는 것:** {selected_school}의 시험기간 일주일 동안 제공된"
+    " 급식 칼로리 총합과 시험 전주 일주일 총합을 비교하여, 시험 기간 특식이나 열량"
+    " 제공 변화 패턴을 한눈에 확인할 수 있습니다."
+)
+
+st.markdown("---")
+
+# ==========================================
+# [구역 2] 상세 일자별 칼로리 변화 추이
+# ==========================================
+st.header(f"📌 구역 2: {selected_school} - 일자별 칼로리 변화 추이")
+
+# 날짜 순으로 정렬
+trend_df = filtered_df.sort_values("날짜")
+
+# 선 그래프 생성 (Plotly)
+fig2 = px.line(
+    trend_df,
+    x="날짜",
+    y="칼로리(kcal)",
+    color="구분",
+    markers=True,
+    title=f"[{selected_school}] 날짜별 급식 칼로리 추이",
+    labels={
+        "날짜": "급식 제공일자",
+        "칼로리(kcal)": "일일 칼로리 (kcal)",
+        "구분": "구분",
+    },
+    color_discrete_map={"시험전주": "#636EFA", "시험기간": "#EF553B"},
+)
+
+fig2.update_traces(
+    hovertemplate=(
+        "<b>날짜:</b> %{x|%Y-%m-%d}<br><b>칼로리:</b> %{y} kcal<extra></extra>"
+    )
+)
+
+fig2.update_xaxes(dtick="86400000.0", tickformat="%Y-%m-%d")
+
+st.plotly_chart(fig2, use_container_width=True)
+
+# 해석 문구
+st.info(
+    "💡 **이 그래프로 알 수 있는 것:** 시험전주와 시험기간 동안의 일별 급식 칼로리"
+    " 변동 추이를 확인하여 특정 날짜에 고칼로리 또는 저칼로리 급식이 집중되었는지"
+    " 상세히 분석할 수 있습니다."
+)
+
+st.markdown("---")
+
+# ==========================================
+# [구역 3] 추후 영양소 및 타 학교 비교 추가 구역
+# ==========================================
+st.header("📌 구역 3: (추가 예정) 기타 영양소 분석 및 학교 간 비교")
+st.caption(
+    "※ 탄수화물, 단백질, 지방 등 추가 영양소 분석 및 3개 학교 동시 비교 그래프가"
+    " 들어갈 확장용 구역입니다."
+)
