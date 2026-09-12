@@ -187,9 +187,61 @@ else:
 st.markdown("---")
 
 # ----------------------------------------------------
-# 구역 4: 추가 그래프 영역 (추후 확장용)
+# 구역 4: 기간 내 관객수 TOP 10 영화 가로 막대그래프
 # ----------------------------------------------------
-st.header("4. [추가 그래프 영역]")
+st.header("4. 기간 내 총 관객수 TOP 10 영화")
+
+# 영화별 총 관객수 및 10위권 차트인 날수(집계 행 수) 집계
+top10_summary = (
+    df.groupby('영화명')
+    .agg(
+        총관객수=('일관객', 'sum'),
+        차트인일수=('날짜', 'count')
+    )
+    .reset_index()
+    .nlargest(10, '총관객수')
+    # Plotly 가로 막대는 아래서부터 위로 그려지므로 관객수 오름차순으로 정렬해야 큰 값이 위에 옵니다.
+    .sort_values('총관객수', ascending=True)
+)
+
+if not top10_summary.empty:
+    # Plotly 가로 막대그래프 생성
+    fig4 = px.bar(
+        top10_summary,
+        x='총관객수',
+        y='영화명',
+        orientation='h',
+        title="기간 내 총 관객수 TOP 10 영화",
+        labels={'총관객수': '누적 관객수(명)', '영화명': '영화 제목', '차트인일수': '10위권 진입 일수'},
+        hover_data=['차트인일수'],
+        color='총관객수',
+        color_continuous_scale='Blues'
+    )
+    
+    # 툴팁 세부 디자인 설정
+    fig4.update_traces(
+        hovertemplate="<b>%{y}</b><br>총 관객수: %{x:,}명<br>10위권 진입 일수: %{customdata[0]}일<extra></extra>"
+    )
+    fig4.update_layout(
+        xaxis_title="누적 관객수(명)",
+        yaxis_title="영화 제목",
+        coloraxis_showscale=False
+    )
+
+    st.plotly_chart(fig4, use_container_width=True)
+
+    # 그래프 설명 문구 자리
+    st.info("💡 **이 그래프로 알 수 있는 것:** 해당 기간 동안 가장 괄목할 만한 성적을 낸 TOP 10 영화의 종합 관객 수 및 각 영화가 TOP 10 박스오피스에 며칠 동안 머물렀는지 롱런 여부를 파악할 수 있습니다.")
+
+else:
+    st.warning("TOP 10 영화 데이터를 처리할 수 없습니다.")
+
+st.markdown("---")
+
+# ----------------------------------------------------
+# 구역 5: 추가 그래프 영역 (추후 확장용)
+# ----------------------------------------------------
+st.header("5. [추가 그래프 영역]")
 st.caption("다음 시각화 그래프가 들어갈 공간입니다.")
 
 st.info("💡 **이 그래프로 알 수 있는 것:** (추후 추가될 그래프 분석 결과 문구가 들어갈 자리입니다.)")
