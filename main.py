@@ -45,7 +45,7 @@ except Exception as e:
     st.stop()
 
 # 전체 편수 및 묶은 편수 한 줄로 표시
-total_count = 3737  # 원본 데이터 기준 또는 전처리 전 전체 수
+total_count = 3737  # 원본 데이터 기준 전체 수
 used_count = len(raw_df)
 st.info(f"📊 **전체 영화 수:** {total_count}편 | **분석에 사용된 묶은 영화 수:** {used_count}편")
 
@@ -154,9 +154,12 @@ summary_df = raw_df.groupby('cluster').agg(
     편수=('movieCd', 'count'),
     스크린_수_평균=('first_scrn', 'mean'),
     누적_관객_평균=('total_audi', 'mean'),
-    10위권_일수_평균=('days_in_top10', 'mean'),
+    상위10위권_일수_평균=('days_in_top10', 'mean'),
     롱런_지수_평균=('long_run', 'mean')
 ).reindex(['㉮', '㉯', '㉰'])
+
+# 컬럼명 정리
+summary_df.columns = ['편수', '스크린 수 평균', '누적 관객 평균', '10위권 일수 평균', '롱런 지수 평균']
 
 # 소수점 둘째 자리 정리
 summary_df = summary_df.round(2)
