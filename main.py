@@ -24,24 +24,24 @@ def load_and_preprocess_data():
     # first_date는 YYYYMMDD 형태의 숫자/문자열
     df_movies['first_date_num'] = pd.to_numeric(df_movies['first_date'], errors='coerce')
     
-    # daily 표와 movies 표를 movieCd & 날짜(first_date) 기준으로 병합
+    # 2. daily 표와 movies 표 병합 (수정된 부분: df_daily의 영화 코드 열은 '영화코드'임)
     df_daily_first = pd.merge(
         df_movies[['movieCd', 'first_date_num']],
         df_daily,
         left_on=['movieCd', 'first_date_num'],
-        right_on=['movieCd', '날짜'],
+        right_on=['영화코드', '날짜'],  # <-- right_on의 'movieCd'를 '영화코드'로 수정
         how='left'
     )
     
-    # 2. '상영당 관객 수' 열 계산 (일관객 / 상영횟수)
-    # 상영횟수가 0이거나 결측인 경우 예외 처리
+    # 3. '상영당 관객 수' 열 계산 (일관객 / 상영횟수)
     df_daily_first['audi_per_show_first'] = np.where(
         df_daily_first['상영횟수'] > 0,
         df_daily_first['일관객'] / df_daily_first['상영횟수'],
         np.nan
     )
     
-    # 계산된 신규 파생 변수를 df_movies 표에 결합
+    # 4. 계산된 '상영당 관객 수'를 df_movies 표에 결합 (동일 영화코드 기준)
+    # df_daily_first의 '영화코드'를 기준으로 병합
     df_movies = pd.merge(
         df_movies,
         df_daily_first[['movieCd', 'audi_per_show_first']],
@@ -87,8 +87,7 @@ fig_hist = px.histogram(
 fig_hist.update_layout(yaxis_title="영화 수 (편)", height=400)
 st.plotly_chart(fig_hist, use_container_width=True)
 
-# 4. 데이터 전처리 및 Train/Test 분할 (동일 기준)
-# 영화코드 순 정렬 후 열 편마다 앞 3편(인덱스 % 10 < 3)을 테스트용으로 분리
+# 4. 데이터 전처리 및 Train/Test 분할
 df_sorted = df_movies.sort_values(by="movieCd").reset_index(drop=True)
 
 test_mask = (df_sorted.index % 10) < 3
@@ -107,7 +106,7 @@ new_features = base_features + ['audi_per_show_first']
 y_train = train_df['total_audi']
 y_test = test_df['total_audi']
 
-# 모델 A: 기본 3개 변수 (첫 관측일 스크린수, 상영횟수, 성수기 여부)
+# 모델 A: 기본 3개 변수
 X_train_base = train_df[base_features].fillna(0)
 X_test_base = test_df[base_features].fillna(0)
 
@@ -154,7 +153,6 @@ eval_df['pred_audi'] = y_pred_new
 under_1000_mask = eval_df['pred_audi'] < 1000
 under_1000_count = under_1000_mask.sum()
 
-# 1,000 미만 예측값은 바닥(1,000)으로 처리
 eval_df['plot_pred_audi'] = eval_df['pred_audi'].apply(lambda x: 1000 if x < 1000 else x)
 
 if under_1000_count > 0:
@@ -175,7 +173,6 @@ fig_scatter = px.scatter(
 min_val = min(eval_df['total_audi'].min(), eval_df['plot_pred_audi'].min())
 max_val = max(eval_df['total_audi'].max(), eval_df['plot_pred_audi'].max())
 
-# 기준선 대각선 추가
 fig_scatter.add_trace(
     go.Scatter(
         x=[min_val, max_val],
