@@ -1,4 +1,3 @@
-import itertools
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -9,29 +8,56 @@ from sklearn.metrics import mean_squared_error, r2_score
 
 # 웹 앱 기본 설정
 st.set_page_config(page_title="영화 흥행 예측기", layout="wide")
-st.title("🎬 영화 흥행 예측기")
+st.title("🎬 영화 흥행 예측기 (첫 관측일 시점 예측)")
 
 # 데이터 URL
 DAILY_URL = "https://raw.githubusercontent.com/greatsong/modudata/main/data/kobis_daily.csv"
 MOVIES_URL = "https://raw.githubusercontent.com/greatsong/modudata/main/data/kobis_movies.csv"
 
-# 데이터 로드 함수
+# 데이터 로드 및 전처리 함수
 @st.cache_data
-def load_data():
+def load_and_preprocess_data():
     df_daily = pd.read_csv(DAILY_URL, encoding="utf-8")
     df_movies = pd.read_csv(MOVIES_URL, encoding="utf-8")
+    
+    # 1. 일별 박스오피스 표에서 영화별 10위권 첫 등장일 데이터 추출
+    # first_date는 YYYYMMDD 형태의 숫자/문자열
+    df_movies['first_date_num'] = pd.to_numeric(df_movies['first_date'], errors='coerce')
+    
+    # daily 표와 movies 표를 movieCd & 날짜(first_date) 기준으로 병합
+    df_daily_first = pd.merge(
+        df_movies[['movieCd', 'first_date_num']],
+        df_daily,
+        left_on=['movieCd', 'first_date_num'],
+        right_on=['movieCd', '날짜'],
+        how='left'
+    )
+    
+    # 2. '상영당 관객 수' 열 계산 (일관객 / 상영횟수)
+    # 상영횟수가 0이거나 결측인 경우 예외 처리
+    df_daily_first['audi_per_show_first'] = np.where(
+        df_daily_first['상영횟수'] > 0,
+        df_daily_first['일관객'] / df_daily_first['상영횟수'],
+        np.nan
+    )
+    
+    # 계산된 신규 파생 변수를 df_movies 표에 결합
+    df_movies = pd.merge(
+        df_movies,
+        df_daily_first[['movieCd', 'audi_per_show_first']],
+        on='movieCd',
+        how='left'
+    )
+    
+    # 파생 변수 결측치는 중앙값으로 보정
+    median_val = df_movies['audi_per_show_first'].median()
+    df_movies['audi_per_show_first'] = df_movies['audi_per_show_first'].fillna(median_val)
+    
     return df_daily, df_movies
 
-df_daily, df_movies = load_data()
+df_daily, df_movies = load_and_preprocess_data()
 
-# 1. 데이터 안내 경고 메시지 (사후 집계값 관련)
-st.warning(
-    "⚠️ **데이터 관련 주의사항**\n\n"
-    "본 데이터셋에 포함된 '첫 주 관객 수(first_week_audi)' 및 '10위권 진입 일수(days_in_top10)' 등은 **영화 개봉 이후 상영 과정에서 수집된 사후 집계값(Ex-post data)**입니다. "
-    "따라서 해당 변수들을 포함한 모델 예측 결과는 **실제 영화 개봉 전(Pre-release) 시점의 순수 예측 성능을 의미하지 않음**을 유의하시기 바랍니다."
-)
-
-# 2. 기준 기간 확인 및 표시
+# 1. 기준 기간 확인 및 표시
 df_daily['date_str'] = df_daily['날짜'].astype(str)
 start_date = df_daily['date_str'].min()
 end_date = df_daily['date_str'].max()
@@ -41,11 +67,28 @@ end_date_fmt = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}"
 
 st.info(f"📅 **기준 기간:** {start_date_fmt} ~ {end_date_fmt}")
 
-# 3. 영화별 표 상위 10개 행 출력
-st.subheader("📋 영화별 데이터 (상위 10개 행)")
+# 2. 영화별 표 상위 10개 행 출력
+st.subheader("📋 영화별 데이터 (상위 10개 행, '상영당 관객 수' 포함)")
 st.dataframe(df_movies.head(10), use_container_width=True)
 
-# 4. 데이터 전처리 및 Train/Test 분할
+# 3. '상영당 관객 수' 히스토그램
+st.markdown("---")
+st.subheader("📊 첫 관측일 '상영당 관객 수' 분포 (히스토그램)")
+st.caption("10위권에 처음 든 날의 `일관객 ÷ 상영횟수` 값의 분포입니다.")
+
+fig_hist = px.histogram(
+    df_movies,
+    x='audi_per_show_first',
+    nbins=40,
+    labels={'audi_per_show_first': '첫 관측일 상영당 관객 수 (명/회)'},
+    title="상영당 관객 수 분포",
+    color_discrete_sequence=['#1f77b4']
+)
+fig_hist.update_layout(yaxis_title="영화 수 (편)", height=400)
+st.plotly_chart(fig_hist, use_container_width=True)
+
+# 4. 데이터 전처리 및 Train/Test 분할 (동일 기준)
+# 영화코드 순 정렬 후 열 편마다 앞 3편(인덱스 % 10 < 3)을 테스트용으로 분리
 df_sorted = df_movies.sort_values(by="movieCd").reset_index(drop=True)
 
 test_mask = (df_sorted.index % 10) < 3
@@ -55,152 +98,96 @@ test_df = df_sorted[test_mask].copy()
 st.markdown("---")
 st.markdown(f"**학습용 영화 수:** `{len(train_df)}`편 | **평가용(테스트) 영화 수:** `{len(test_df)}`편")
 
-# 5. 사이드바 - 변수 선택
-st.sidebar.header("⚙️ 변수 조합 탐색 설정")
-st.sidebar.write("조합 비교에 포함할 후보 변수들을 선택하세요:")
+# 5. 모델 평가 비교 (기본 3개 변수 vs + 상영당 관객 수)
+st.subheader("⚖️ 모델 성능 비교 (결정계수 R²)")
 
-possible_features = [
-    'first_scrn', 'first_show', 'peak', 
-    'first_week_audi', 'days_in_top10'
-]
+base_features = ['first_scrn', 'first_show', 'peak']
+new_features = base_features + ['audi_per_show_first']
 
-feature_labels = {
-    'first_scrn': '첫 관측일 스크린수',
-    'first_show': '첫 관측일 상영횟수',
-    'peak': '성수기 개봉 여부',
-    'first_week_audi': '첫 주 관객수',
-    'days_in_top10': '10위권 진입 일수'
-}
+y_train = train_df['total_audi']
+y_test = test_df['total_audi']
 
-selected_candidate_features = []
-for feat in possible_features:
-    if st.sidebar.checkbox(f"{feature_labels[feat]} ({feat})", value=True):
-        selected_candidate_features.append(feat)
+# 모델 A: 기본 3개 변수 (첫 관측일 스크린수, 상영횟수, 성수기 여부)
+X_train_base = train_df[base_features].fillna(0)
+X_test_base = test_df[base_features].fillna(0)
 
-if not selected_candidate_features:
-    st.warning("⚠️ 사이드바에서 최소 하나 이상의 변수를 선택해 주세요.")
-else:
-    # 6. 모든 가능한 변수 조합 생성 및 평가
-    y_train = train_df['total_audi']
-    y_test = test_df['total_audi']
+model_base = LinearRegression()
+model_base.fit(X_train_base, y_train)
+y_pred_base = model_base.predict(X_test_base)
 
-    combination_results = []
+r2_base = r2_score(y_test, y_pred_base)
+rmse_base = np.sqrt(mean_squared_error(y_test, y_pred_base))
 
-    # 1개 변수 조합부터 N개 변수 조합까지 생성
-    for k in range(1, len(selected_candidate_features) + 1):
-        for combo in itertools.combinations(selected_candidate_features, k):
-            combo_list = list(combo)
-            
-            X_tr = train_df[combo_list].fillna(0)
-            X_te = test_df[combo_list].fillna(0)
-            
-            mdl = LinearRegression()
-            mdl.fit(X_tr, y_train)
-            preds = mdl.predict(X_te)
-            
-            r2_val = r2_score(y_test, preds)
-            rmse_val = np.sqrt(mean_squared_error(y_test, preds))
-            
-            combo_names = [feature_labels[col] for col in combo_list]
-            
-            combination_results.append({
-                "변수 개수": k,
-                "사용 변수 목록": ", ".join(combo_names),
-                "변수 코드": ", ".join(combo_list),
-                "결정계수 (R²)": r2_val,
-                "평균 제곱근 오차 (RMSE)": rmse_val,
-                "_raw_combo": combo_list,
-                "_model": mdl
-            })
+# 모델 B: 기본 3개 변수 + 상영당 관객 수
+X_train_new = train_df[new_features].fillna(0)
+X_test_new = test_df[new_features].fillna(0)
 
-    results_df = pd.DataFrame(combination_results)
-    # R² 내림차순 정렬
-    results_df = results_df.sort_values(by="결정계수 (R²)", ascending=False).reset_index(drop=True)
+model_new = LinearRegression()
+model_new.fit(X_train_new, y_train)
+y_pred_new = model_new.predict(X_test_new)
 
-    # 7. 변수 조합별 점수 비교 표 및 주요 지표 출력
-    st.subheader("🏆 변수 조합별 성능 비교 (R² 기준 내림차순)")
-    
-    best_combo = results_df.iloc[0]
-    
-    col_m1, col_m2, col_m3 = st.columns(3)
-    col_m1.metric("최고 결정계수 (Best R²)", f"{best_combo['결정계수 (R²)']:.4f}")
-    col_m2.metric("최저 RMSE", f"{best_combo['평균 제곱근 오차 (RMSE)']:,.0f} 명")
-    col_m3.metric("최적 변수 조합", f"{best_combo['변수 개수']}개 변수 사용")
-    
-    st.caption(f"🥇 **최적 조합:** {best_combo['사용 변수 목록']}")
+r2_new = r2_score(y_test, y_pred_new)
+rmse_new = np.sqrt(mean_squared_error(y_test, y_pred_new))
 
-    # 결과 테이블 표시
-    st.dataframe(
-        results_df[["변수 개수", "사용 변수 목록", "결정계수 (R²)", "평균 제곱근 오차 (RMSE)"]].style.format({
-            "결정계수 (R²)": "{:.4f}",
-            "평균 제곱근 오차 (RMSE)": "{:,.0f}"
-        }),
-        use_container_width=True
+# 성적 나란히 표시
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("#### 1️⃣ 기본 변수 (3개)")
+    st.caption("변수: `첫 관측일 스크린수`, `첫 관측일 상영횟수`, `성수기 개봉 여부`")
+    st.metric("결정계수 (R²)", f"{r2_base:.4f}")
+    st.metric("평균 제곱근 오차 (RMSE)", f"{rmse_base:,.0f} 명")
+
+with col2:
+    st.markdown("#### 2️⃣ + 상영당 관객 수 추가 (4개)")
+    st.caption("변수: 기본 3개 + `상영당 관객 수 (audi_per_show_first)`")
+    st.metric("결정계수 (R²)", f"{r2_new:.4f}", delta=f"{r2_new - r2_base:+.4f}")
+    st.metric("평균 제곱근 오차 (RMSE)", f"{rmse_new:,.0f} 명", delta=f"{rmse_new - rmse_base:,.0f} 명", delta_color="inverse")
+
+# 6. 산점도 시각화 (새로운 4개 변수 모델 기준)
+st.markdown("---")
+st.subheader("📉 실제 관객 수 vs 예측 관객 수 (로그 스케일)")
+
+eval_df = test_df.copy()
+eval_df['pred_audi'] = y_pred_new
+
+under_1000_mask = eval_df['pred_audi'] < 1000
+under_1000_count = under_1000_mask.sum()
+
+# 1,000 미만 예측값은 바닥(1,000)으로 처리
+eval_df['plot_pred_audi'] = eval_df['pred_audi'].apply(lambda x: 1000 if x < 1000 else x)
+
+if under_1000_count > 0:
+    st.caption(f"📌 예측 관객 수가 1,000명보다 작은 영화는 총 **{under_1000_count}편**이며, 그래프 바닥(1,000명 선)에 붙여 표시되었습니다.")
+
+fig_scatter = px.scatter(
+    eval_df,
+    x='total_audi',
+    y='plot_pred_audi',
+    hover_data=['movieNm', 'total_audi', 'pred_audi', 'audi_per_show_first'],
+    labels={
+        'total_audi': '실제 총 관객 수 (명)',
+        'plot_pred_audi': '예측 총 관객 수 (명)'
+    },
+    title="기본 변수 + 상영당 관객 수 모델 예측 결과"
+)
+
+min_val = min(eval_df['total_audi'].min(), eval_df['plot_pred_audi'].min())
+max_val = max(eval_df['total_audi'].max(), eval_df['plot_pred_audi'].max())
+
+# 기준선 대각선 추가
+fig_scatter.add_trace(
+    go.Scatter(
+        x=[min_val, max_val],
+        y=[min_val, max_val],
+        mode='lines',
+        name='기준선 (실제 = 예측)',
+        line=dict(color='red', dash='dash')
     )
+)
 
-    # 8. 시각화할 조합 선택 (라디오 버튼)
-    st.markdown("---")
-    st.subheader("📉 선택한 변수 조합의 예측 산점도 (로그 스케일)")
-    
-    combo_options = [
-        f"[{row['변수 개수']}개 변수] {row['사용 변수 목록']} (R²: {row['결정계수 (R²)']:.4f})" 
-        for _, row in results_df.iterrows()
-    ]
-    
-    selected_option_idx = st.selectbox(
-        "시각화로 확인할 변수 조합을 선택하세요:", 
-        options=range(len(combo_options)),
-        format_func=lambda x: combo_options[x]
-    )
-    
-    selected_row = results_df.iloc[selected_option_idx]
-    selected_features = selected_row["_raw_combo"]
-    
-    # 선택된 조합으로 예측 수행
-    X_test_selected = test_df[selected_features].fillna(0)
-    selected_model = selected_row["_model"]
-    y_pred_selected = selected_model.predict(X_test_selected)
-    
-    eval_df = test_df.copy()
-    eval_df['pred_audi'] = y_pred_selected
-    
-    under_1000_mask = eval_df['pred_audi'] < 1000
-    under_1000_count = under_1000_mask.sum()
-    
-    # 1,000 미만 예측값 처리 (그래프 바닥 1,000으로 고정)
-    eval_df['plot_pred_audi'] = eval_df['pred_audi'].apply(lambda x: 1000 if x < 1000 else x)
-    
-    if under_1000_count > 0:
-        st.caption(f"📌 예측 관객 수가 1,000명보다 작은 영화는 총 **{under_1000_count}편**이며, 그래프 바닥(1,000명 선)에 붙여 표시되었습니다.")
+fig_scatter.update_xaxes(type="log", title="실제 총 관객 수 (로그 스케일)")
+fig_scatter.update_yaxes(type="log", title="예측 총 관객 수 (로그 스케일)")
+fig_scatter.update_layout(height=600)
 
-    # Plotly 산점도
-    fig = px.scatter(
-        eval_df,
-        x='total_audi',
-        y='plot_pred_audi',
-        hover_data=['movieNm', 'total_audi', 'pred_audi'],
-        labels={
-            'total_audi': '실제 총 관객 수 (명)',
-            'plot_pred_audi': '예측 총 관객 수 (명)'
-        },
-        title=f"실제 관객 수 대비 예측 관객 수 분포 ({selected_row['사용 변수 목록']})"
-    )
-
-    min_val = min(eval_df['total_audi'].min(), eval_df['plot_pred_audi'].min())
-    max_val = max(eval_df['total_audi'].max(), eval_df['plot_pred_audi'].max())
-    
-    fig.add_trace(
-        go.Scatter(
-            x=[min_val, max_val],
-            y=[min_val, max_val],
-            mode='lines',
-            name='기준선 (실제 = 예측)',
-            line=dict(color='red', dash='dash')
-        )
-    )
-
-    fig.update_xaxes(type="log", title="실제 총 관객 수 (로그 스케일)")
-    fig.update_yaxes(type="log", title="예측 총 관객 수 (로그 스케일)")
-    fig.update_layout(height=600)
-
-    st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig_scatter, use_container_width=True)
