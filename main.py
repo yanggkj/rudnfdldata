@@ -1,51 +1,58 @@
-# main.py — 뇌졸중 예측 실습실: 이 데이터가 무엇인지 소개하는 첫 화면
+# main.py — 급식 규칙 찾기: 같은 날 함께 나온 메뉴 쌍을 센다
+import re
+from collections import Counter
+from itertools import combinations
 
+import pandas as pd
+import plotly.express as px
 import streamlit as st
 
-st.set_page_config(
-    page_title="뇌졸중 예측 실습실",
-    page_icon="🩺",
-    layout="wide"
-)
+URL = "https://raw.githubusercontent.com/greatsong/modudata/main/data/danggok_meals_184.csv"
+
+st.title("🍚 급식 규칙 찾기")
 
 
-def 홈_화면():
-    # 기존 main.py의 데이터 읽기 및 화면 표시 코드를
-    # 전부 이 함수 안에 넣으세요.
-    import pandas as pd
-
-    st.title("🩺 뇌졸중 예측 실습실")
-    st.write(
-        "건강 기록 5,110명분을 읽어 옵니다. "
-        "왼쪽 메뉴에서 페이지를 넘기며 데이터를 탐색하고, "
-        "모델을 만들고, 채점합니다."
-    )
-
-    데이터주소 = (
-        "https://raw.githubusercontent.com/"
-        "greatsong/modudata/main/data/stroke.csv"
-    )
-
-    @st.cache_data
-    def 데이터_읽기():
-        return pd.read_csv(데이터주소, encoding="utf-8")
-
-    df = 데이터_읽기()
-
-    칸1, 칸2, 칸3, 칸4 = st.columns(4)
-    칸1.metric("전체 사람 수", f"{len(df):,}명")
-    칸2.metric("열 개수", f"{df.shape[1]}개")
-    칸3.metric("뇌졸중을 겪은 사람", f"{int(df['stroke'].sum()):,}명")
-    칸4.metric("그 비율", f"{df['stroke'].mean() * 100:.2f}%")
+@st.cache_data(ttl=3600)
+def load_baskets(url):
+    table = pd.read_csv(url, encoding="utf-8")
+    baskets = []
+    for line in table["메뉴"]:
+        names = set()
+        for dish in str(line).split("|"):
+            name = re.sub(r"\([^)]*\)", "", dish).strip()   # 괄호와 그 안의 내용은 제외한다
+            if name:
+                names.add(name)
+        if names:
+            baskets.append(sorted(names))
+    return baskets
 
 
-페이지 = st.navigation([
-    st.Page(홈_화면, title="실습실 홈", icon="🏠", default=True),
-    st.Page("pages/1_탐색.py", title="1. 데이터 탐색", icon="🔎"),
-    st.Page("pages/2_분류_모델.py", title="2. 분류 모델", icon="🔎"),
-    st.Page("pages/3_채점표.py", title="3. 채점표", icon="🔎"),
-    st.Page("pages/4_전처리.py", title="4. 전처리", icon="🔎"),
-    st.Page("pages/5_내가_만든_모델_소개.py", title="5. 내가만든모델소개", icon="🔎"),
-])
+baskets = load_baskets(URL)
+n = len(baskets)
+single = Counter(item for basket in baskets for item in basket)           # 메뉴가 나온 날 수
+pair = Counter(c for basket in baskets for c in combinations(basket, 2))  # 두 메뉴가 함께 나온 날 수
 
-페이지.run()
+rows = []
+for (a, b), together in pair.items():
+    for x, y in [(a, b), (b, a)]:              # 한 쌍에서 두 방향의 규칙이 나온다
+        rows.append({"조건": x, "결과": y, "동시": together,
+                     "지지도": round(together / n, 3),
+                     "신뢰도": round(together / single[x], 3),
+                     "향상도": round((together / single[x]) / (single[y] / n), 2)})
+규칙 = pd.DataFrame(rows, columns=["조건", "결과", "동시", "지지도", "신뢰도", "향상도"])
+
+st.caption(f"급식 {n}일 · 메뉴 {len(single)}종 · 함께 나온 적이 있는 메뉴 쌍 {len(pair):,}개 · "
+           f"규칙 {len(규칙):,}개")
+
+기준 = st.radio("정렬", ["향상도 순", "신뢰도 순", "동시 순"], horizontal=True)
+메뉴 = st.selectbox("메뉴로 좁혀 보기", ["(전체)"] + sorted(single))
+보기 = 규칙 if 메뉴 == "(전체)" else 규칙[(규칙["조건"] == 메뉴) | (규칙["결과"] == 메뉴)]
+보기 = 보기.sort_values({"향상도 순": "향상도", "신뢰도 순": "신뢰도", "동시 순": "동시"}[기준],
+                    ascending=False, ignore_index=True)
+st.dataframe(보기, width="stretch", hide_index=True)
+
+top = 보기.sort_values("향상도", ascending=False).head(10).copy()
+top["규칙"] = top["조건"] + " → " + top["결과"]
+fig = px.bar(top, x="향상도", y="규칙", orientation="h", text="향상도")
+fig.update_layout(yaxis={"categoryorder": "total ascending"}, height=420)
+st.plotly_chart(fig, width="stretch")
